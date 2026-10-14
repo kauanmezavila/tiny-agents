@@ -1,115 +1,92 @@
 <div align="center">
-  <img src="imgs/logo.png" alt="Tiny Agents" width="180" />
+  <table bgcolor="#ffffff">
+    <tr><td><img src="imgs/logo.png" alt="Tiny Agents" width="180" /></td></tr>
+  </table>
   <h1>Tiny Agents</h1>
-  <p>A small starting point for building agents and harnesses with Python.</p>
+  <p>Small building blocks for Python agents and harnesses.</p>
 </div>
 
----
+Tiny Agents is an early-stage framework for building custom agent harnesses. It currently provides an NVIDIA API client, a simple in-memory conversation context, and terminal formatting utilities.
 
-Tiny Agents is an early-stage project to Terra from [Hack Club](https://hackclub.com/) exploring a simple way to build agents: small functions that make the job 15x times easier.
+## Install
 
-The goal is to provide small, understandable building blocks for creating custom harnesses.
-The focus is on learning and experimentation without hiding how things work behind a large framework.
-
-> The framework isn't complete for now (time expected: 12 weeks)
-
-## What’s ready to use
-
-- A chat client using the `openai` SDK to NVIDIA models with structured response
-- A function for sending a system instruction and user message, then receiving the model’s full response.
-- Terminal utilities for pretting the responses.
-
-## Getting started
-
-You need Python and an API key compatible with the configured endpoint. Install the SDK:
+Install the framework and its dependencies from a checkout with uv:
 
 ```bash
-python -m pip install openai
+uv sync
 ```
 
-Set your API key as an environment variable:
+Or use pip if you do not have uv:
+
+```bash
+python -m pip install .
+```
+
+Set an NVIDIA API key before making requests:
 
 ```bash
 export NVIDIA_API_KEY="your-api-key"
 ```
 
-On Windows PowerShell:
+In PowerShell:
 
 ```powershell
 $env:NVIDIA_API_KEY = "your-api-key"
 ```
 
-Example, run from the repository root:
+## Quick start
 
 ```python
 import os
-from dotenv import load_dotenv
 
-from src.tinyAgents import *
+from src.tinyAgents import (
+    addToContextWindow,
+    contextWindowSize,
+    messageToLLM,
+    startClient,
+)
 from Packages.prettyResolver import prettyResolve
 
-load_dotenv()
+client = startClient(os.environ["NVIDIA_API_KEY"])
+prompt = "You are a helpful assistant."
+message = "Which number is larger, 9.11 or 9.8?"
 
-apiKey = os.getenv("API_KEY")
+completion = messageToLLM(
+    client,
+    "nvidia/nemotron-3-super-120b-a12b",
+    prompt,
+    message,
+)
+response = completion.choices[0].message.content
 
-client = startClient(apiKey)
-
-prePrompt = "You are a helpful agent that gives HUGE and COMPLEX answers"
-
-completion = messageToLLM(client, "nvidia/nemotron-3-super-120b-a12b", prePrompt, "Which number is larger, 9.11 or 9.8?")
-
-print(completion.choices[0].message.content)
-print(prettyResolve(completion.choices[0].message.content))
+print(prettyResolve(response))
+addToContextWindow(message, response)
+print(f"Context size: {contextWindowSize()} characters")
 ```
 
-The model identifier depends on which models are available to your NVIDIA account and if have structured responses.
+Choose a model identifier available to your NVIDIA account. `messageToLLM` returns the full response from the OpenAI SDK.
 
-## Frame Functions
+## API
 
-This is what is ready to use:
+- `startClient(api_key)` creates an OpenAI SDK client configured for NVIDIA's OpenAI-compatible endpoint.
+- `messageToLLM(client, model, prePrompt, message)` sends the system instruction, saved context, and user message; it returns the SDK response.
+- `addToContextWindow(message, response)` stores a user message and response in process memory.
+- `contextWindowSize()` returns the total character count stored in the context.
+- `prettyResolve(text)` formats Markdown headings and bold text for terminal output.
 
-**1. startClient**
+The context is in-memory and is lost when the process exits. Its size is measured in characters, not model tokens.
 
-```python
-startClient(api_key)
-```
+## Project status
 
-Starts a OpenAI client.
-
-- api_key: receives the api key
-
-**2. messageToLLM**
-
-```python
-messageToLLM(client, model, prePrompt, message)
-```
-
-Sends an message to a LLM via API with the client.
-
-- client: usually created using the **startClient** function
-- model: the model name, like "nvidia/nemotron-3-super-120b-a12b"
-- prePrompt: pre instructions to the model
-- message: what you want the model to respond
-
-## Project structure
-
-```text
-src/tinyAgents.py          model connection and chat request
-Packages/colors.py         terminal display utilities
-Packages/prettyResolver.py simple heading and bold-text formatting
-```
-
-## Project direction
-
-The project aims to grow through small components that can be combined into a harness: model interaction, context, and eventually tools that let an agent take actions. These features have not been implemented yet.
+The framework is under active development. The project aims to keep its building blocks small and understandable; tools and agent execution are not implemented yet. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Contributing
 
-This project is just getting started. Suggestions, experiments, and contributions are welcome. Open an issue or submit a pull request with a clear description of the change.
+Suggestions and contributions are welcome. Open an issue or submit a pull request with a clear description of the change.
 
 ## Ownership
 
-The project is being developed under [KML Research Labs](https://github.com/KML-Research-Labs) by [Kauan Mezavila (Most known as BK or ByKurebo)](https://github.com/kauanmezavila)
+Developed under [KML Research Labs](https://github.com/KML-Research-Labs) by [Kauan Mezavila](https://github.com/kauanmezavila).
 
 ## License
 
