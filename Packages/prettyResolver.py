@@ -1,5 +1,6 @@
 from Packages.colors import *
 
+
 def prettyResolve(text):
     result = []
     bold = False
@@ -10,7 +11,7 @@ def prettyResolve(text):
 
     while i < len(text):
         if line_start:
-            if text[i:i + 4] == "### ":
+            if text[i : i + 4] == "### ":
                 title_active = True
                 title_color = CYAN
                 result.append(title_color + BOLD)
@@ -18,7 +19,7 @@ def prettyResolve(text):
                 line_start = False
                 continue
 
-            elif text[i:i + 3] == "## ":
+            elif text[i : i + 3] == "## ":
                 title_active = True
                 title_color = BLUE
                 result.append(title_color + BOLD)
@@ -26,7 +27,7 @@ def prettyResolve(text):
                 line_start = False
                 continue
 
-            elif text[i:i + 2] == "# ":
+            elif text[i : i + 2] == "# ":
                 title_active = True
                 title_color = YELLOW
                 result.append(title_color + BOLD)
@@ -34,11 +35,10 @@ def prettyResolve(text):
                 line_start = False
                 continue
 
-        if text[i:i + 2] == "**":
+        if text[i : i + 2] == "**":
             bold = not bold
             result.append(
-                (title_color if title_color else "")
-                + (BOLD if bold else RESET)
+                (title_color if title_color else "") + (BOLD if bold else RESET)
             )
             i += 2
 
