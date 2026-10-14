@@ -1,3 +1,9 @@
+## [0.1.2]
+
+- Added new functions to compact the context window by or deleting the older registers or asking the model to summarize
+- Added a cleaning context window function
+- Updated prettyResolve
+
 ## [0.1.1]
 
 - Added an in-memory context window with `addToContextWindow` and `contextWindowSize`.

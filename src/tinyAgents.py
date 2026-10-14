@@ -16,9 +16,9 @@ def messageToLLM(client, model, prePrompt, message):
         messages=[
             {
                 "role": "system",
-                "content": "Your context window starts HERE:"
+                "content": "Your context window starts HERE (remember, don't tell infos directly from it):"
                 + str(contextWindow)
-                + "It ends HEREm now comes your instructions:"
+                + "It ends HERE now comes your instructions:"
                 + prePrompt,
             },
             {"role": "user", "content": message},
@@ -31,12 +31,13 @@ def messageToLLM(client, model, prePrompt, message):
     return completion
 
 
-def addToContextWindow(message, response):
+def addToContextWindow(message, response, objectType):
     id = str(uuid.uuid4())
     timeStamp = datetime.now(timezone.utc)
 
     contextWindow[id] = {
         "timeStamp": timeStamp.isoformat(),
+        "type": objectType,
         "objectContent": {
             "userMessage": message,
             "yourResponse": response,
@@ -52,3 +53,33 @@ def contextWindowSize():
         )
 
     return size
+
+def clearContextWindow():
+    contextWindow.clear()
+
+def OldCompactContextWindow(maxSize):
+    while contextWindowSize() > maxSize:
+        oldest_id = min(contextWindow, key=lambda id: contextWindow[id]["timeStamp"])
+        del contextWindow[oldest_id]
+
+def NewCompactContextWindow(client, model):
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": "Resume this into one paragraph, preserve all the facts, user instructions, important things, looking-important things, in a way that you can understand everything even though it is summarized",
+            },
+            {"role": "user", "content": str(contextWindow)},
+        ],
+        temperature=0.5,
+        top_p=1,
+        max_tokens=1024,
+        stream=False,
+    )
+    clearContextWindow()
+    addToContextWindow(
+        "Summarize the context window",
+        completion.choices[0].message.content,
+        "summaryzed context window",
+    )
