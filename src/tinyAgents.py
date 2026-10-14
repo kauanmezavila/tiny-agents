@@ -54,13 +54,16 @@ def contextWindowSize():
 
     return size
 
+
 def clearContextWindow():
     contextWindow.clear()
+
 
 def OldCompactContextWindow(maxSize):
     while contextWindowSize() > maxSize:
         oldest_id = min(contextWindow, key=lambda id: contextWindow[id]["timeStamp"])
         del contextWindow[oldest_id]
+
 
 def NewCompactContextWindow(client, model):
     completion = client.chat.completions.create(

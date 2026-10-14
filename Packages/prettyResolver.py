@@ -1,5 +1,6 @@
 from Packages.colors import *
 
+
 def prettyResolve(text):
     result = []
 
@@ -68,7 +69,6 @@ def prettyResolve(text):
             line_start = True
         else:
             line_start = False
-
 
     result.append(RESET)
 
