@@ -1,0 +1,16 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "hourNow",
+        "description": "Checks the current hour",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}
