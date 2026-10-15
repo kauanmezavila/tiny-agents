@@ -12,6 +12,7 @@ def startClient(api_key):
     client = OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=api_key)
     return client
 
+
 def loadToolHandlers(path):
     with open(path, "r", encoding="utf-8") as file:
         config = json.load(file)
@@ -31,9 +32,11 @@ def loadToolHandlers(path):
 
     return handlers
 
+
 def loadTools(path):
-    with open(path, 'r', encoding='utf-8') as file:
+    with open(path, "r", encoding="utf-8") as file:
         return json.load(file)["tools"]
+
 
 def messageToLLM(client, model, prePrompt, message):
     completion = client.chat.completions.create(
@@ -55,9 +58,8 @@ def messageToLLM(client, model, prePrompt, message):
     )
     return completion
 
-def messageToLLMTools(
-    client, model, prePrompt, message, TOOLS, TOOL_HANDLERS
-):
+
+def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS):
     messages = [
         {
             "role": "system",
@@ -92,9 +94,7 @@ def messageToLLMTools(
         if not assistantMessage.tool_calls:
             return completion, executedTools
 
-        messages.append(
-            assistantMessage.model_dump(exclude_none=True)
-        )
+        messages.append(assistantMessage.model_dump(exclude_none=True))
 
         for toolCall in assistantMessage.tool_calls:
             toolName = toolCall.function.name
@@ -103,18 +103,12 @@ def messageToLLMTools(
 
             try:
                 if toolName not in TOOL_HANDLERS:
-                    raise ValueError(
-                        f"Not authorized tool: {toolName}"
-                    )
+                    raise ValueError(f"Not authorized tool: {toolName}")
 
-                args = json.loads(
-                    toolCall.function.arguments
-                )
+                args = json.loads(toolCall.function.arguments)
 
                 if not isinstance(args, dict):
-                    raise ValueError(
-                        "Tool args need to be a JSON object"
-                    )
+                    raise ValueError("Tool args need to be a JSON object")
 
                 result = TOOL_HANDLERS[toolName](**args)
 
@@ -129,22 +123,26 @@ def messageToLLMTools(
                     "error": str(error),
                 }
 
-            executedTools.append({
-                "id": toolId,
-                "name": toolName,
-                "arguments": args,
-                **toolOutput,
-            })
+            executedTools.append(
+                {
+                    "id": toolId,
+                    "name": toolName,
+                    "arguments": args,
+                    **toolOutput,
+                }
+            )
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": toolId,
-                "content": json.dumps(
-                    toolOutput,
-                    ensure_ascii=False,
-                    default=str,
-                ),
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": toolId,
+                    "content": json.dumps(
+                        toolOutput,
+                        ensure_ascii=False,
+                        default=str,
+                    ),
+                }
+            )
 
         completion = client.chat.completions.create(
             model=model,
