@@ -1,5 +1,8 @@
 .env
 .venv/
+.codex
+.aws
+.agents
 
 __pycache__/
 __init__.py

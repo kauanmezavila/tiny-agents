@@ -4,7 +4,7 @@
       "type": "function",
       "function": {
         "name": "hourNow",
-        "description": "Checks the current hour",
+        "description": "Return the current UTC date and time.",
         "parameters": {
           "type": "object",
           "properties": {},
@@ -16,16 +16,18 @@
       "type": "function",
       "function": {
         "name": "runInShell",
-        "description": "Run comands in the user bash",
+        "description": "Run a shell command and return its output and exit code.",
         "parameters": {
           "type": "object",
           "properties": {
             "cmd": {
               "type": "string",
-              "description": "The comand to run, just like in the shell"
+              "description": "The command to execute in the shell."
             }
           },
-          "required": ["cmd"],
+          "required": [
+            "cmd"
+          ],
           "additionalProperties": false
         }
       }
@@ -34,16 +36,18 @@
       "type": "function",
       "function": {
         "name": "runInShellCool",
-        "description": "Run comands in the user bash, but this one print things in user terminal",
+        "description": "Run a shell command, display its output, and return its output and exit code.",
         "parameters": {
           "type": "object",
           "properties": {
             "cmd": {
               "type": "string",
-              "description": "The comand to run, just like in the shell"
+              "description": "The command to execute in the shell."
             }
           },
-          "required": ["cmd"],
+          "required": [
+            "cmd"
+          ],
           "additionalProperties": false
         }
       }

@@ -91,7 +91,7 @@ def loading(text="Loading", duration=2, color=CYAN):
             if time.time() >= end:
                 break
 
-    print(f"\r{GREEN}✓ {text} concluído!{RESET}")
+    print(f"\r{GREEN}✓ {text} completed!{RESET}")
 
 
 def progress(total=20, delay=0.05, color=GREEN):

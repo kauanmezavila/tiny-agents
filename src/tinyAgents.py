@@ -2,6 +2,7 @@ import uuid
 import os
 import json
 import importlib
+import asyncio
 from openai import OpenAI
 from datetime import datetime, timezone
 
@@ -38,13 +39,13 @@ def loadTools(path):
         return json.load(file)["tools"]
 
 
-def messageToLLM(client, model, prePrompt, message):
+async def messageToLLM(client, model, prePrompt, message):
     completion = client.chat.completions.create(
         model=model,
         messages=[
             {
                 "role": "system",
-                "content": "Your context window starts HERE (remember, don't tell infos directly from it):"
+                "content": "Your context window starts HERE (remember, do not disclose information directly from it):"
                 + str(contextWindow)
                 + "It ends HERE now comes your instructions:"
                 + prePrompt,
@@ -59,13 +60,13 @@ def messageToLLM(client, model, prePrompt, message):
     return completion
 
 
-def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS):
+async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS):
     messages = [
         {
             "role": "system",
             "content": (
                 "Your context window starts HERE "
-                "(remember, don't tell infos directly from it):\n"
+                "(remember, do not disclose information directly from it):\n"
                 + str(contextWindow)
                 + "\nIt ends HERE. Now comes your instructions:\n"
                 + prePrompt
@@ -103,12 +104,12 @@ def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS):
 
             try:
                 if toolName not in TOOL_HANDLERS:
-                    raise ValueError(f"Not authorized tool: {toolName}")
+                    raise ValueError(f"Unauthorized tool: {toolName}")
 
                 args = json.loads(toolCall.function.arguments)
 
                 if not isinstance(args, dict):
-                    raise ValueError("Tool args need to be a JSON object")
+                    raise ValueError("Tool arguments must be a JSON object")
 
                 result = TOOL_HANDLERS[toolName](**args)
 
@@ -156,7 +157,7 @@ def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS):
         )
 
     if completion.choices[0].message.tool_calls:
-        raise RuntimeError("Tool calls limit exceeded")
+        raise RuntimeError("Tool call limit exceeded")
 
     return completion, executedTools
 
@@ -202,7 +203,7 @@ def NewCompactContextWindow(client, model):
         messages=[
             {
                 "role": "system",
-                "content": "Resume this into one paragraph, preserve all the facts, user instructions, important things, looking-important things, in a way that you can understand everything even though it is summarized",
+                "content": "Summarize this context in one paragraph. Preserve all facts, user instructions, and important or potentially important information so the summary can be used as conversation context.",
             },
             {"role": "user", "content": str(contextWindow)},
         ],
@@ -215,5 +216,5 @@ def NewCompactContextWindow(client, model):
     addToContextWindow(
         "Summarize the context window",
         completion.choices[0].message.content,
-        "summaryzed context window",
+        "summarized context window",
     )
