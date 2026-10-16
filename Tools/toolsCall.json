@@ -1,3 +1,5 @@
 {
-  "hourNow": "Tools.hourNow:hourNow"
+  "hourNow": "Tools.hourNow.hourNow:hourNow",
+  "runInShell": "Tools.runInShell.runInShell:runInShell",
+  "runInShellCool": "Tools.runInShell.runInShell:runInShellCool"
 }

@@ -11,6 +11,42 @@
           "additionalProperties": false
         }
       }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "runInShell",
+        "description": "Run comands in the user bash",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "description": "The comand to run, just like in the shell"
+            }
+          },
+          "required": ["cmd"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "runInShellCool",
+        "description": "Run comands in the user bash, but this one print things in user terminal",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "description": "The comand to run, just like in the shell"
+            }
+          },
+          "required": ["cmd"],
+          "additionalProperties": false
+        }
+      }
     }
   ]
 }
