@@ -6,7 +6,7 @@
   <p>Small building blocks for Python agents and harnesses.</p>
 </div>
 
-Tiny Agents is a framework for building custom agent harnesses. Version 0.2.0 adds a configurable terminal panel alongside the existing NVIDIA API client, in-memory conversation context, JSON-based tool calling, and terminal formatting utilities.
+Tiny Agents is a framework for building custom agent harnesses. Version 0.2.1 improves terminal panel responsiveness and async command execution alongside the NVIDIA API client, in-memory conversation context, JSON-based tool calling, and terminal formatting utilities.
 
 The core works independently of the panel. Applications connect tools to the interface through callbacks, so the same tools can also run in a regular terminal.
 
@@ -72,6 +72,10 @@ TOOLS_HANDLERS = loadToolHandlers(toolsCallJsonPath)
 prePrompt = "You are a helpful agent that provides detailed answers. Use tools only when the user asks."
 
 
+async def compactContext(args: list[str], ctx: PanelContext) -> None:
+    await agent_worker.run(NewCompactContextWindow(client, model))
+
+
 def echo(args: list[str], ctx: PanelContext) -> str:
     return " ".join(args)
 
@@ -118,6 +122,7 @@ COMMANDS = [
     Command("/echo", "Repeat the arguments", echo),
     Command("/clear", "Clear the panel", clear_command),
     Command("/exit", "Exit the panel", exit_command),
+    Command("/compact", "Compact the context window", compactContext),
 ]
 
 PANEL_CONFS = {
@@ -169,7 +174,7 @@ python main.py
 
 The example runs model requests and tool execution in `AsyncWorker`, keeping the panel responsive. It explicitly saves each exchange with `addToContextWindow`. Shell output is connected to the chat by binding `runInShellCool` to `ctx.write`; the original handler dictionary remains available for console use.
 
-Commands include `/echo`, `/clear`, and `/exit`. `/clear` clears the visible chat, not the framework's conversation context. Scroll with PgUp/PgDn, or jump to the beginning and end with Ctrl+Home/Ctrl+End.
+Commands include `/echo`, `/clear`, `/exit`, and `/compact`. `/compact` runs model-based context compaction through the worker. `/clear` clears the visible chat, not the framework's conversation context. Scroll with PgUp/PgDn, or jump to the beginning and end with Ctrl+Home/Ctrl+End.
 
 ## Panel configuration
 
@@ -182,7 +187,7 @@ Pass a dictionary to `initPanel` from `src.Panel.Panel`:
 | `THINKING_TEXT` | Activity label; defaults to `Thinking...`. |
 | `MODEL_NAME` | Model name displayed below the context meter. |
 | `MODEL_HANDLER` | Callable receiving `(text, ctx)` and returning a response or `None`; synchronous and async handlers are supported. |
-| `COMMANDS` | List of `Command(name, description, handler)` instances. Command handlers receive `(args, ctx)`. |
+| `COMMANDS` | List of `Command(name, description, handler)` instances. Command handlers receive `(args, ctx)` and may be synchronous or async. |
 | `COMMANDS_LIST` | Completion suggestions; defaults to registered command names. |
 | `CONTEXT_WINDOW_SIZE` | Function taking no arguments and returning the current usage; defaults to zero. |
 | `CONTEXT_WINDOW_MAX` | Positive integer used as the meter's maximum; defaults to `10000`. |
@@ -190,7 +195,9 @@ Pass a dictionary to `initPanel` from `src.Panel.Panel`:
 | `MESSAGE_SPACING` | Number of blank lines between messages; defaults to `1`, and accepts `0`. |
 | `STYLE` | Style overrides for the selected theme. |
 
-`PanelContext` exposes `write(text)`, `clear()`, and `exit()`. Writes from the agent worker are scheduled on the UI loop.
+`PanelContext` exposes `write(text)`, `clear()`, and `exit()`. Writes from the agent worker are scheduled on the UI loop and chat updates are batched during bursts of output. The spinner refreshes only during activity, and unchanged ANSI lines are cached.
+
+Command handlers are awaited when async; synchronous handlers run in a thread. Async commands are prevented from starting during a model request or another async command. `/clear` and `/exit` remain available. Async handlers that use the synchronous SDK must delegate that work to `AsyncWorker`, as `/compact` does in the example. `dispatch` is now async and direct callers must await it.
 
 The activity line stays reserved above the hints. The spinner and activity text appear only while the model handler is running; the context meter remains visible. Its color changes at 70% and 90% usage, and the bar fills completely at or above the maximum.
 
@@ -298,14 +305,26 @@ This example reads environment variables directly. The helpers retain synchronou
 | `contextWindowSize()` | Count saved user and response characters. |
 | `clearContextWindow()` | Clear the saved conversation. |
 | `OldCompactContextWindow(maxSize)` | Remove the oldest exchanges until the size is within a non-negative character limit. |
-| `NewCompactContextWindow(client, model)` | Request a summary and replace the saved conversation with it. |
+| `NewCompactContextWindow(client, model)` | Async request for a summary that replaces the saved conversation; must be awaited. |
 | `prettyResolve(text)` | Format Markdown headings and emphasis for terminal output. |
 
 Requests do not automatically save their results. Pass `executedTools` to `addToContextWindow` to retain tool records alongside an exchange. Context is shared within the process and is lost when it exits. Model-based compaction makes an additional API request and may lose details.
 
+Compaction follows the same async calling pattern as `messageToLLM`:
+
+```python
+await NewCompactContextWindow(client, model)
+```
+
+From the panel's UI loop, use the existing worker to keep the synchronous SDK request off the UI thread:
+
+```python
+await agent_worker.run(NewCompactContextWindow(client, model))
+```
+
 ## Project status
 
-Version 0.2.0 introduces the terminal panel and its integration points. The framework remains under active development. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+Version 0.2.1 improves the terminal panel introduced in 0.2.0, including async compaction, command execution, and output rendering. The framework remains under active development. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Contributing
 

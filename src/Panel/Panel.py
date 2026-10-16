@@ -6,9 +6,10 @@ import re
 import shlex
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from time import monotonic
-from typing import Callable
+from typing import Awaitable, Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -64,7 +65,7 @@ class AsyncWorker:
         return await asyncio.wrap_future(future)
 
 
-Handler = Callable[[list[str], "PanelContext"], str | None]
+Handler = Callable[[list[str], "PanelContext"], str | None | Awaitable[str | None]]
 Action = Callable[[], None]
 
 
@@ -97,7 +98,7 @@ class PanelContext:
         self._exit()
 
 
-def dispatch(
+async def dispatch(
     text: str,
     registry: dict[str, Command],
     ctx: PanelContext,
@@ -116,7 +117,12 @@ def dispatch(
         return f"[ERROR] Unknown command: {name}"
 
     try:
-        result = command.handler(args, ctx)
+        if inspect.iscoroutinefunction(command.handler):
+            result = await command.handler(args, ctx)
+        else:
+            result = await asyncio.to_thread(command.handler, args, ctx)
+        if inspect.isawaitable(result):
+            result = await result
         if result is not None and not isinstance(result, str):
             return str(result)
         return result
@@ -265,6 +271,14 @@ def strip_ansi(text: str) -> str:
     return ANSI_ESCAPE_RE.sub("", text)
 
 
+@lru_cache(maxsize=4096)
+def _styled_ansi_line(text: str, base_style: str):
+    return [
+        (f"{base_style} {style}".strip(), fragment)
+        for style, fragment in to_formatted_text(ANSI(text))
+    ]
+
+
 class ANSIChatLexer(Lexer):
 
     def __init__(self) -> None:
@@ -281,11 +295,7 @@ class ANSIChatLexer(Lexer):
 
         def get_line(lineno: int):
             if 0 <= lineno < len(lines):
-                fragments = to_formatted_text(ANSI(lines[lineno]))
-                return [
-                    (f"{styles[lineno]} {style}".strip(), text)
-                    for style, text in fragments
-                ]
+                return _styled_ansi_line(lines[lineno], styles[lineno])
             return []
 
         return get_line
@@ -327,7 +337,13 @@ def initPanel(confs: dict) -> Application:
     def render_messages() -> str:
         return message_separator.join(text for _, text in messages)
 
+    refresh_handle: asyncio.TimerHandle | None = None
+
     def refresh_chat(scroll_to_bottom: bool = True) -> None:
+        nonlocal refresh_handle
+        if refresh_handle is not None:
+            refresh_handle.cancel()
+            refresh_handle = None
         if not locals_ref.get("chat_area"):
             return
         raw_text = render_messages()
@@ -339,12 +355,25 @@ def initPanel(confs: dict) -> Application:
             line_styles.extend([style] * len(text.split("\n")))
         chat_lexer.set_text(raw_text, line_styles)
         plain_text = strip_ansi(raw_text)
-        chat_area.text = plain_text
-        if scroll_to_bottom:
-            chat_area.buffer.cursor_position = len(plain_text)
+        cursor = (
+            len(plain_text)
+            if scroll_to_bottom
+            else min(chat_area.buffer.cursor_position, len(plain_text))
+        )
+        chat_area.buffer.set_document(
+            Document(plain_text, cursor_position=cursor), bypass_readonly=True
+        )
         app = app_ref[0]
         if app is not None:
             app.invalidate()
+
+    def schedule_refresh() -> None:
+        nonlocal refresh_handle
+        app = app_ref[0]
+        if app is None or not app.is_running:
+            refresh_chat()
+        elif refresh_handle is None:
+            refresh_handle = app.loop.call_later(0.03, refresh_chat)
 
     locals_ref: dict[str, bool] = {}
 
@@ -359,7 +388,7 @@ def initPanel(confs: dict) -> Application:
         if kind:
             message_styles[ident] = f"class:{kind}"
         messages.append((ident, str(text)))
-        refresh_chat()
+        schedule_refresh()
         return ident
 
     def run_on_ui(callback: Callable, *args) -> None:
@@ -466,15 +495,21 @@ def initPanel(confs: dict) -> Application:
         frame = spinner_frames[int(monotonic() / 0.1) % len(spinner_frames)]
         return f"{frame} {thinking_label}"
 
+    context_used = 0
+
+    def update_context(app) -> None:
+        nonlocal context_used
+        context_used = max(0, int(context_size()))
+
     def context_text() -> str:
-        used = max(0, int(context_size()))
+        used = context_used
         ratio = min(1, used / context_max)
         filled = int(ratio * 10)
         bar = "█" * filled + "░" * (10 - filled)
         return f"Context [{bar}] {used}/{context_max} ({used / context_max:.0%})"
 
     def context_fragments():
-        ratio = max(0, int(context_size())) / context_max
+        ratio = context_used / context_max
         level = "full" if ratio >= 0.9 else "warning" if ratio >= 0.7 else "low"
         return [(f"class:context-{level}", context_text())]
 
@@ -562,8 +597,14 @@ def initPanel(confs: dict) -> Application:
             return await result
         return result
 
+    async def animate_activity(app: Application) -> None:
+        while busy:
+            app.invalidate()
+            await asyncio.sleep(0.1)
+
     async def process_model(text: str, app: Application) -> None:
         nonlocal busy
+        animation = app.create_background_task(animate_activity(app))
         try:
             result = await invoke_model(text)
             if result is not None:
@@ -575,7 +616,30 @@ def initPanel(confs: dict) -> Application:
                 f"[ERROR] Model request failed: {type(exc).__name__}: {exc}",
             )
         finally:
+            animation.cancel()
             busy = False
+            refresh_chat()
+            app.invalidate()
+
+    async def process_command(
+        text: str, app: Application, tracks_activity: bool
+    ) -> None:
+        nonlocal busy
+        animation = (
+            app.create_background_task(animate_activity(app))
+            if tracks_activity
+            else None
+        )
+        try:
+            result = await dispatch(text, registry, ctx)
+            if result is not None:
+                ctx.write(result)
+        finally:
+            if tracks_activity:
+                busy = False
+            if animation is not None:
+                animation.cancel()
+            refresh_chat()
             app.invalidate()
 
     @kb.add("enter")
@@ -594,9 +658,24 @@ def initPanel(confs: dict) -> Application:
         input_field.text = ""
 
         if text.startswith("/"):
-            result = dispatch(text, registry, ctx)
-            if result is not None:
-                ctx.write(result)
+            try:
+                name = shlex.split(text)[0]
+            except ValueError:
+                name = ""
+            command = registry.get(name)
+            tracks_activity = command is not None and inspect.iscoroutinefunction(
+                command.handler
+            )
+            if tracks_activity and busy:
+                add_message(
+                    "[INFO] A request is already running. Please wait for the response."
+                )
+                return
+            if tracks_activity:
+                busy = True
+            event.app.create_background_task(
+                process_command(text, event.app, tracks_activity)
+            )
             event.app.invalidate()
             return
 
@@ -644,7 +723,8 @@ def initPanel(confs: dict) -> Application:
         style=style,
         full_screen=True,
         mouse_support=True,
-        refresh_interval=0.1,
+        min_redraw_interval=0.03,
+        before_render=update_context,
     )
 
     app_ref[0] = app

@@ -85,7 +85,6 @@ async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDL
         tool_choice="auto",
         temperature=0.5,
         top_p=1,
-        max_tokens=1024,
         stream=False,
     )
 
@@ -152,7 +151,6 @@ async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDL
             tool_choice="auto",
             temperature=0.5,
             top_p=1,
-            max_tokens=1024,
             stream=False,
         )
 
@@ -197,7 +195,7 @@ def OldCompactContextWindow(maxSize):
         del contextWindow[oldest_id]
 
 
-def NewCompactContextWindow(client, model):
+async def NewCompactContextWindow(client, model):
     completion = client.chat.completions.create(
         model=model,
         messages=[

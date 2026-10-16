@@ -1,3 +1,12 @@
+## [0.2.1]
+
+- Made `NewCompactContextWindow` async and added a `/compact` example that delegates compaction to `AsyncWorker`.
+- Fixed command execution to await async handlers and run synchronous handlers in a thread; direct callers must now await `dispatch`.
+- Prevented async commands from overlapping model requests or other async commands while keeping `/clear` and `/exit` available.
+- Improved panel responsiveness by batching chat updates, caching ANSI formatting, sampling context usage once per render, and animating the spinner only during activity.
+- Added six regression tests covering async commands, blocking handlers, overlapping requests, idle rendering, and bursts of tool output.
+- Synchronized the README panel example with `main.py`, including `/compact` and its worker integration.
+
 ## [0.2.0]
 
 - Added a terminal panel with scrollable chat, command completion, `/echo`, `/clear`, and `/exit` example commands, and ANSI-formatted messages.
