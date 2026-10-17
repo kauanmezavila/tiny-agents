@@ -51,6 +51,18 @@ The framework requires Python 3.10 or newer.
 
 The distribution name is `by-tiny-agents`; Python imports use `tinyAgents`.
 
+After the package is published to PyPI, install the core with:
+
+```bash
+python -m pip install by-tiny-agents
+```
+
+To install the optional panel dependencies too:
+
+```bash
+python -m pip install "by-tiny-agents[panel]"
+```
+
 Install the core and panel dependencies from a repository checkout:
 
 ```bash
