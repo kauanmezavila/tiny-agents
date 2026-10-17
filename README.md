@@ -8,29 +8,31 @@
 
 Tiny Agents is a framework for building custom agent harnesses. Version 0.2.3 adds `AgentHarness`, which connects model/provider selection, clients, tools, conversation context, and panel callbacks. Application configuration and harness creation stay in `main.py`; reusable wiring lives in the framework. The framework also includes async command execution, OpenAI-compatible provider clients, JSON-based tool calling, in-memory conversation context, and terminal formatting utilities.
 
+**v0.2.3: multiple providers, less configuration, less code, more action.**
+
 The core works independently of the panel. Applications connect tools to the interface through callbacks, so the same tools can also run in a regular terminal.
 
 For step-by-step examples, see the [usage guide](docs/USAGE.md). The guide covers direct model calls, adding tools, context management, provider setup, and assembling the panel harness.
 
 ## Function organization
 
-| Module | Main responsibilities |
-| --- | --- |
-| `src/tinyAgents.py` | `startClient`, model request functions, tool loading and execution, context storage and compaction. |
-| `src/AgentHarness.py` | `AgentHarness`: connects provider/model state, tools, requests, context, worker, and panel callbacks. |
-| `src/Panel/Panel.py` | `initPanel`, `Command`, `PanelContext`, `AsyncWorker`, command dispatch, and terminal UI. |
-| `Tools/` | Tool schemas, handler mappings, and tool implementations such as `hourNow` and shell commands. |
-| `Packages/` | Presentation helpers such as `prettyResolve` and terminal colors. |
-| `main.py` | Application configuration and assembly: profiles, prompt, tool setup, commands, panel settings, and startup. |
+| Module                | Main responsibilities                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `src/tinyAgents.py`   | `startClient`, model request functions, tool loading and execution, context storage and compaction.          |
+| `src/AgentHarness.py` | `AgentHarness`: connects provider/model state, tools, requests, context, worker, and panel callbacks.        |
+| `src/Panel/Panel.py`  | `initPanel`, `Command`, `PanelContext`, `AsyncWorker`, command dispatch, and terminal UI.                    |
+| `Tools/`              | Tool schemas, handler mappings, and tool implementations such as `hourNow` and shell commands.               |
+| `Packages/`           | Presentation helpers such as `prettyResolve` and terminal colors.                                            |
+| `main.py`             | Application configuration and assembly: profiles, prompt, tool setup, commands, panel settings, and startup. |
 
 Keep application-specific behavior and configuration in `main.py` or app modules. Reusable request and wiring behavior belongs in the framework modules; tool implementations belong in `Tools/`.
 
 ## Providers and models
 
-| Provider | Models |
-| --- | --- |
-| NVIDIA NIM | `openai/gpt-oss-20b`, `nvidia/nemotron-3-super-120b-a12b`, `z-ai/glm-5-3-flash` |
-| Cloud Ollama | `gpt-oss:20b` |
+| Provider     | Models                                                                          |
+| ------------ | ------------------------------------------------------------------------------- |
+| NVIDIA NIM   | `openai/gpt-oss-20b`, `nvidia/nemotron-3-super-120b-a12b`, `z-ai/glm-5-3-flash` |
+| Cloud Ollama | `gpt-oss:20b`                                                                   |
 
 ## Installation
 
@@ -192,10 +194,10 @@ Pass a dictionary to `initPanel` from `src.Panel.Panel`:
 | `INPUT_BOX_UPPER_TEXT`      | Extra text beside the scrolling hints.                                                                                           |
 | `THINKING_TEXT`             | Activity label; defaults to `Thinking...`.                                                                                       |
 | `MODEL_NAME`                | Current model name displayed in the panel; updated after selection.                                                              |
-| `MODEL_PROVIDER`            | Current provider displayed with the model when set.                                                                               |
-| `MODEL_OPTION`               | Current selector ID, usually `provider::model`, used to highlight the selected option.                                           |
+| `MODEL_PROVIDER`            | Current provider displayed with the model when set.                                                                              |
+| `MODEL_OPTION`              | Current selector ID, usually `provider::model`, used to highlight the selected option.                                           |
 | `MODEL_OPTIONS`             | Optional list of model IDs that enables the `/model` selector.                                                                   |
-| `MODEL_OPTION_LABELS`       | Optional mapping from selector IDs to human-readable labels.                                                                      |
+| `MODEL_OPTION_LABELS`       | Optional mapping from selector IDs to human-readable labels.                                                                     |
 | `MODEL_SELECT_HANDLER`      | Optional callback receiving the selected option ID.                                                                              |
 | `MODEL_HANDLER`             | Callable receiving `(text, ctx)` and returning a response or `None`; synchronous and async handlers are supported.               |
 | `COMMANDS`                  | List of `Command(name, description, handler)` instances. Command handlers receive `(args, ctx)` and may be synchronous or async. |
@@ -306,21 +308,21 @@ This example reads environment variables directly. The helpers retain synchronou
 
 ## Context and API
 
-| API                                                                          | Purpose                                                                              |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `startClient(profiles, selected)`                                            | Create an OpenAI-compatible client using the selected provider's key and URL.         |
-| `messageToLLM(client, model, prePrompt, message)`                            | Async request without tool calling; returns the SDK completion.                      |
-| `loadTools(path)`                                                            | Load the `tools` array from JSON.                                                    |
-| `loadToolHandlers(path)`                                                     | Import and validate configured Python handlers.                                      |
-| `messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS)` | Async request with tool execution; returns completion and execution records.         |
-| `addToContextWindow(message, response, objectType, toolsRunned=[])`          | Save an exchange and optional tool records.                                          |
-| `contextWindow`                                                              | Shared in-memory conversation dictionary.                                            |
-| `contextWindowSize()`                                                        | Count saved user and response tokens.                                                |
-| `clearContextWindow()`                                                       | Clear the saved conversation.                                                        |
-| `OldCompactContextWindow(maxSize)`                                           | Remove the oldest exchanges until the size is within a non-negative character limit. |
-| `NewCompactContextWindow(client, model)`                                     | Async request for a summary that replaces the saved conversation; must be awaited.   |
-| `prettyResolve(text)`                                                        | Format Markdown headings and emphasis for terminal output.                           |
-| `AgentHarness(...)`                                                         | Connect provider/model selection, tool handlers, context, worker, and panel callbacks. |
+| API                                                                          | Purpose                                                                                |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `startClient(profiles, selected)`                                            | Create an OpenAI-compatible client using the selected provider's key and URL.          |
+| `messageToLLM(client, model, prePrompt, message)`                            | Async request without tool calling; returns the SDK completion.                        |
+| `loadTools(path)`                                                            | Load the `tools` array from JSON.                                                      |
+| `loadToolHandlers(path)`                                                     | Import and validate configured Python handlers.                                        |
+| `messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS)` | Async request with tool execution; returns completion and execution records.           |
+| `addToContextWindow(message, response, objectType, toolsRunned=[])`          | Save an exchange and optional tool records.                                            |
+| `contextWindow`                                                              | Shared in-memory conversation dictionary.                                              |
+| `contextWindowSize()`                                                        | Count saved user and response tokens.                                                  |
+| `clearContextWindow()`                                                       | Clear the saved conversation.                                                          |
+| `OldCompactContextWindow(maxSize)`                                           | Remove the oldest exchanges until the size is within a non-negative character limit.   |
+| `NewCompactContextWindow(client, model)`                                     | Async request for a summary that replaces the saved conversation; must be awaited.     |
+| `prettyResolve(text)`                                                        | Format Markdown headings and emphasis for terminal output.                             |
+| `AgentHarness(...)`                                                          | Connect provider/model selection, tool handlers, context, worker, and panel callbacks. |
 
 Requests do not automatically save their results. Pass `executedTools` to `addToContextWindow` to retain tool records alongside an exchange. Context is shared within the process and is lost when it exits. Model-based compaction makes an additional API request and may lose details.
 
