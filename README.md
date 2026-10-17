@@ -4,11 +4,10 @@
   </table>
   <h1>Tiny Agents</h1>
   <p>Small building blocks for Python agents and harnesses.</p>
+  <p><b>v0.2.3: multiple providers, less configuration, less code, more action.</b></p>
 </div>
 
 Tiny Agents is a framework for building custom agent harnesses. Version 0.2.3 adds `AgentHarness`, which connects model/provider selection, clients, tools, conversation context, and panel callbacks. Application configuration and harness creation stay in `main.py`; reusable wiring lives in the framework. The framework also includes async command execution, OpenAI-compatible provider clients, JSON-based tool calling, in-memory conversation context, and terminal formatting utilities.
-
-**v0.2.3: multiple providers, less configuration, less code, more action.**
 
 The core works independently of the panel. Applications connect tools to the interface through callbacks, so the same tools can also run in a regular terminal.
 
