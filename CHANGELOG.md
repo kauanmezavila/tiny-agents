@@ -1,3 +1,9 @@
+## [0.2.2]
+
+- Added an interactive `/model` selector above the panel input, with arrow-key navigation, Enter to select, and Esc to close; direct selection by model name or number is also available.
+- Added `MODEL_OPTIONS` and `MODEL_SELECT_HANDLER` panel configuration, and kept the displayed model name synchronized with selection.
+- Restored normal command autocomplete navigation while the model selector is closed and documented selector styles and framework usage.
+
 ## [0.2.1]
 
 - Made `NewCompactContextWindow` async and added a `/compact` example that delegates compaction to `AsyncWorker`.

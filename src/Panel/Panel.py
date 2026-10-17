@@ -18,9 +18,10 @@ if str(ROOT) not in sys.path:
 from prompt_toolkit.application import Application
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.document import Document
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import ANSI, to_formatted_text
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.layout import Float, FloatContainer, HSplit, VSplit, Layout, Window
+from prompt_toolkit.layout import DynamicContainer, Float, FloatContainer, HSplit, VSplit, Layout, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.lexers import Lexer
@@ -435,8 +436,48 @@ def initPanel(confs: dict) -> Application:
 
     registry = {command.name: command for command in confs.get("COMMANDS", [])}
 
+    model_options = confs.get("MODEL_OPTIONS", [])
+    model_menu_open = False
+    model_menu_index = 0
+    if model_options:
+        options = [str(option) for option in model_options]
+
+        async def select_model(args: list[str], ctx: PanelContext):
+            if not args:
+                nonlocal model_menu_open, model_menu_index
+                current = str(confs.get("MODEL_NAME") or "")
+                model_menu_index = options.index(current) if current in options else 0
+                model_menu_open = True
+                app = app_ref[0]
+                if app is not None:
+                    app.layout.focus(input_field)
+                    app.invalidate()
+                return
+
+            selected = " ".join(args)
+            if selected.isdigit():
+                index = int(selected) - 1
+                if not 0 <= index < len(options):
+                    return f"[ERROR] Invalid index. Choose between 1-{len(options)}."
+                selected = options[index]
+            elif selected not in options:
+                return f"[ERROR] Invalid model: {selected}. Use /model to the options"
+
+            on_select = confs.get("MODEL_SELECT_HANDLER")
+            if on_select is not None:
+                result = on_select(selected)
+                if inspect.isawaitable(result):
+                    await result
+            confs["MODEL_NAME"] = selected
+            return
+
+        registry["/model"] = Command("/model", "List or select a model", select_model)
+
+    command_suggestions = list(confs.get("COMMANDS_LIST", registry.keys()))
+    if "/model" in registry and "/model" not in command_suggestions:
+        command_suggestions.append("/model")
     commands = WordCompleter(
-        confs.get("COMMANDS_LIST", list(registry.keys())),
+        command_suggestions,
         sentence=True,
         match_middle=False,
     )
@@ -481,6 +522,10 @@ def initPanel(confs: dict) -> Application:
             return f"{scroll_hint}  │  {configured_hint}"
         return scroll_hint
 
+    def model_label() -> str:
+        model_name = str(confs.get("MODEL_NAME") or "")
+        return f"Model: {model_name}" if model_name else ""
+
     hint_window = Window(
         content=FormattedTextControl(lambda: to_formatted_text(ANSI(get_hint_text()))),
         height=1,
@@ -504,8 +549,8 @@ def initPanel(confs: dict) -> Application:
     def context_text() -> str:
         used = context_used
         ratio = min(1, used / context_max)
-        filled = int(ratio * 10)
-        bar = "█" * filled + "░" * (10 - filled)
+        filled = int(ratio * 20)
+        bar = "█" * filled + "░" * (20 - filled)
         return f"Context [{bar}] {used}/{context_max} ({used / context_max:.0%})"
 
     def context_fragments():
@@ -534,15 +579,12 @@ def initPanel(confs: dict) -> Application:
         padding=1,
     )
 
-    model_name = str(confs.get("MODEL_NAME") or "")
     hint_row = VSplit(
         [
             hint_window,
             Window(
-                content=FormattedTextControl(
-                    f"Model: {model_name}" if model_name else ""
-                ),
-                width=lambda: len(context_text()),
+                content=FormattedTextControl(model_label),
+                width=lambda: len(model_label()),
                 height=1,
                 style="class:hint",
                 wrap_lines=False,
@@ -552,6 +594,46 @@ def initPanel(confs: dict) -> Application:
     )
 
     kb = KeyBindings()
+
+    async def apply_menu_model(app: Application) -> None:
+        nonlocal model_menu_open
+        selected = options[model_menu_index]
+        try:
+            on_select = confs.get("MODEL_SELECT_HANDLER")
+            if on_select is not None:
+                result = on_select(selected)
+                if inspect.isawaitable(result):
+                    await result
+            confs["MODEL_NAME"] = selected
+            add_message(f"Model selected: {selected}")
+        except Exception as exc:
+            add_message(f"[ERROR] Fail selecting the model: {exc}")
+        finally:
+            model_menu_open = False
+            app.invalidate()
+
+    menu_is_open = Condition(lambda: model_menu_open)
+
+    @kb.add("up", filter=menu_is_open, eager=True)
+    def model_menu_up(event) -> None:
+        nonlocal model_menu_index
+        if model_menu_open:
+            model_menu_index = (model_menu_index - 1) % len(options)
+            event.app.invalidate()
+
+    @kb.add("down", filter=menu_is_open, eager=True)
+    def model_menu_down(event) -> None:
+        nonlocal model_menu_index
+        if model_menu_open:
+            model_menu_index = (model_menu_index + 1) % len(options)
+            event.app.invalidate()
+
+    @kb.add("escape", filter=menu_is_open, eager=True)
+    def close_model_menu(event) -> None:
+        nonlocal model_menu_open
+        if model_menu_open:
+            model_menu_open = False
+            event.app.invalidate()
 
     def move_chat_cursor(direction: int, event) -> None:
         doc = chat_area.buffer.document
@@ -646,6 +728,10 @@ def initPanel(confs: dict) -> Application:
     def submit(event) -> None:
         nonlocal busy
 
+        if model_menu_open:
+            event.app.create_background_task(apply_menu_model(event.app))
+            return
+
         if event.app.layout.current_buffer is not input_field.buffer:
             event.app.layout.focus(input_field)
             return
@@ -696,6 +782,35 @@ def initPanel(confs: dict) -> Application:
                 separator,
                 status_row,
                 hint_row,
+                *(
+                    [
+                        DynamicContainer(
+                            lambda: Window(
+                                content=FormattedTextControl(
+                                    lambda: [
+                                        ("class:title", " Select model "),
+                                        ("", "\n↑/↓ navigation | Enter selects | Esc quit\n\n"),
+                                        *[
+                                            (
+                                                "class:radio-checked"
+                                                if index == model_menu_index
+                                                else "class:radio",
+                                                f"{'❯' if index == model_menu_index else ' '} {option}{'  (actual)' if option == confs.get('MODEL_NAME') else ''}\n",
+                                            )
+                                            for index, option in enumerate(options)
+                                        ],
+                                    ]
+                                ),
+                                height=len(options) + 3,
+                                style="class:completion-menu",
+                            )
+                            if model_menu_open
+                            else Window(height=0)
+                        )
+                    ]
+                    if model_options
+                    else []
+                ),
                 input_field,
             ]
         ),
@@ -707,7 +822,7 @@ def initPanel(confs: dict) -> Application:
                     max_height=6,
                     scroll_offset=1,
                 ),
-            )
+            ),
         ],
     )
 

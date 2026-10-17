@@ -6,7 +6,7 @@
   <p>Small building blocks for Python agents and harnesses.</p>
 </div>
 
-Tiny Agents is a framework for building custom agent harnesses. Version 0.2.1 improves terminal panel responsiveness and async command execution alongside the NVIDIA API client, in-memory conversation context, JSON-based tool calling, and terminal formatting utilities.
+Tiny Agents is a framework for building custom agent harnesses. Version 0.2.2 adds an interactive model selector to the terminal panel, restores normal command completion while the selector is closed, and keeps the displayed model synchronized with the selection. It also includes async command execution, the NVIDIA API client, in-memory conversation context, JSON-based tool calling, and terminal formatting utilities.
 
 The core works independently of the panel. Applications connect tools to the interface through callbacks, so the same tools can also run in a regular terminal.
 
@@ -174,7 +174,25 @@ python main.py
 
 The example runs model requests and tool execution in `AsyncWorker`, keeping the panel responsive. It explicitly saves each exchange with `addToContextWindow`. Shell output is connected to the chat by binding `runInShellCool` to `ctx.write`; the original handler dictionary remains available for console use.
 
-Commands include `/echo`, `/clear`, `/exit`, and `/compact`. `/compact` runs model-based context compaction through the worker. `/clear` clears the visible chat, not the framework's conversation context. Scroll with PgUp/PgDn, or jump to the beginning and end with Ctrl+Home/Ctrl+End.
+Commands include `/echo`, `/clear`, `/exit`, `/compact`, and `/model` when model options are configured. Run `/model` to open the selector above the input box, move with ↑/↓, choose with Enter, or close it with Esc. You can also select directly with `/model <number or name>`. The selected model is shown in the panel. To use it for future requests, connect `MODEL_SELECT_HANDLER` to the model state read by your handlers:
+
+```python
+model_state = {"name": model}
+
+def set_model(model_name: str) -> None:
+    model_state["name"] = model_name
+
+# In _process_agent, pass model_state["name"] as the model argument to
+# messageToLLMTools. In compactContext, pass it to NewCompactContextWindow.
+
+PANEL_CONFS.update({
+    "MODEL_NAME": model_state["name"],
+    "MODEL_OPTIONS": ["model-a", "model-b"],
+    "MODEL_SELECT_HANDLER": set_model,
+})
+```
+
+Make compaction handlers read the same `model_state["name"]` if they should use the selected model too. `/compact` runs model-based context compaction through the worker. `/clear` clears the visible chat, not the framework's conversation context. Scroll with PgUp/PgDn, or jump to the beginning and end with Ctrl+Home/Ctrl+End.
 
 ## Panel configuration
 
@@ -185,7 +203,9 @@ Pass a dictionary to `initPanel` from `src.Panel.Panel`:
 | `NAME_TEXT`, `SUBNAME_TEXT` | Title and subtitle; ANSI formatting is supported. |
 | `INPUT_BOX_UPPER_TEXT` | Extra text beside the scrolling hints. |
 | `THINKING_TEXT` | Activity label; defaults to `Thinking...`. |
-| `MODEL_NAME` | Model name displayed below the context meter. |
+| `MODEL_NAME` | Current model name displayed in the panel; updated after selection. |
+| `MODEL_OPTIONS` | Optional list of model IDs that enables the `/model` selector. |
+| `MODEL_SELECT_HANDLER` | Optional callback receiving the selected model ID. Use it to update the state read by model and compaction handlers. |
 | `MODEL_HANDLER` | Callable receiving `(text, ctx)` and returning a response or `None`; synchronous and async handlers are supported. |
 | `COMMANDS` | List of `Command(name, description, handler)` instances. Command handlers receive `(args, ctx)` and may be synchronous or async. |
 | `COMMANDS_LIST` | Completion suggestions; defaults to registered command names. |
@@ -224,7 +244,7 @@ PANEL_STYLE = {
 
 Styles accept prompt_toolkit style strings or ANSI constants such as `BG_BLUE + WHITE`. `user` applies to sent messages, `model` to returned model responses, and `error` to messages beginning with `[ERROR]`. Tool output remains independent. ANSI formatting embedded in messages is preserved and can override their text color.
 
-Other style keys include `chat-area`, `hint`, `separator`, `input-field`, `completion-menu`, `completion-menu.completion`, `completion-menu.completion.current`, `scrollbar`, and `scrollbar.button`.
+The model selector appears directly above the input box and uses the `completion-menu` background style. Its choices use `radio` and `radio-checked` styles. Other style keys include `chat-area`, `hint`, `separator`, `input-field`, `completion-menu.completion`, `completion-menu.completion.current`, `scrollbar`, and `scrollbar.button`.
 
 ## Tool calling
 
@@ -324,7 +344,7 @@ await agent_worker.run(NewCompactContextWindow(client, model))
 
 ## Project status
 
-Version 0.2.1 improves the terminal panel introduced in 0.2.0, including async compaction, command execution, and output rendering. The framework remains under active development. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+Version 0.2.2 adds interactive model selection and updates the terminal panel documentation. The framework remains under active development. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Contributing
 
