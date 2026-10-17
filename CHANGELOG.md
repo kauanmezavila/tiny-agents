@@ -1,3 +1,10 @@
+## [0.2.3]
+
+- Added `AgentHarness` to the framework to connect provider/model selection, clients, tool execution, conversation context, and panel callbacks.
+- Updated the example to keep application configuration and harness construction in `main.py`, while moving reusable agent-to-panel wiring into the framework.
+- Added provider-aware model choices. Switching providers recreates the client with that provider's API key and endpoint; custom providers can supply `baseUrl` in their profile.
+- Captured the selected client and model together for each request so a selection change cannot mismatch them while a request is starting.
+
 ## [0.2.2]
 
 - Added an interactive `/model` selector above the panel input, with arrow-key navigation, Enter to select, and Esc to close; direct selection by model name or number is also available.

@@ -445,6 +445,7 @@ def initPanel(confs: dict) -> Application:
     registry = {command.name: command for command in confs.get("COMMANDS", [])}
 
     model_options = confs.get("MODEL_OPTIONS", [])
+    model_option_labels = confs.get("MODEL_OPTION_LABELS", {})
     model_menu_open = False
     model_menu_index = 0
     if model_options:
@@ -453,7 +454,7 @@ def initPanel(confs: dict) -> Application:
         async def select_model(args: list[str], ctx: PanelContext):
             if not args:
                 nonlocal model_menu_open, model_menu_index
-                current = str(confs.get("MODEL_NAME") or "")
+                current = str(confs.get("MODEL_OPTION") or confs.get("MODEL_NAME") or "")
                 model_menu_index = options.index(current) if current in options else 0
                 model_menu_open = True
                 app = app_ref[0]
@@ -476,7 +477,13 @@ def initPanel(confs: dict) -> Application:
                 result = on_select(selected)
                 if inspect.isawaitable(result):
                     await result
-            confs["MODEL_NAME"] = selected
+            if "::" in selected:
+                provider, model_name = selected.split("::", 1)
+                confs["MODEL_PROVIDER"] = provider
+                confs["MODEL_NAME"] = model_name
+                confs["MODEL_OPTION"] = selected
+            else:
+                confs["MODEL_NAME"] = selected
             return
 
         registry["/model"] = Command("/model", "List or select a model", select_model)
@@ -532,7 +539,9 @@ def initPanel(confs: dict) -> Application:
 
     def model_label() -> str:
         model_name = str(confs.get("MODEL_NAME") or "")
-        return f"Model: {model_name}" if model_name else ""
+        provider = str(confs.get("MODEL_PROVIDER") or "")
+        label = f"{provider} / {model_name}" if provider else model_name
+        return f"Model: {label}" if model_name else ""
 
     hint_window = Window(
         content=FormattedTextControl(lambda: to_formatted_text(ANSI(get_hint_text()))),
@@ -612,8 +621,16 @@ def initPanel(confs: dict) -> Application:
                 result = on_select(selected)
                 if inspect.isawaitable(result):
                     await result
-            confs["MODEL_NAME"] = selected
-            add_message(f"Model selected: {selected}")
+            if "::" in selected:
+                provider, model_name = selected.split("::", 1)
+                confs["MODEL_PROVIDER"] = provider
+                confs["MODEL_NAME"] = model_name
+                confs["MODEL_OPTION"] = selected
+                selected_label = model_option_labels.get(selected, f"{provider} / {model_name}")
+            else:
+                confs["MODEL_NAME"] = selected
+                selected_label = selected
+            add_message(f"Model selected: {selected_label}")
         except Exception as exc:
             add_message(f"[ERROR] Fail selecting the model: {exc}")
         finally:
@@ -809,7 +826,7 @@ def initPanel(confs: dict) -> Application:
                                                         if index == model_menu_index
                                                         else "class:radio"
                                                     ),
-                                                    f"{'❯' if index == model_menu_index else ' '} {option}{'  (actual)' if option == confs.get('MODEL_NAME') else ''}\n",
+                                                    f"{'❯' if index == model_menu_index else ' '} {model_option_labels.get(option, option)}{'  (actual)' if option == confs.get('MODEL_OPTION', confs.get('MODEL_NAME')) else ''}\n",
                                                 )
                                                 for index, option in enumerate(options)
                                             ],

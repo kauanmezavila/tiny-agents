@@ -10,9 +10,20 @@ from datetime import datetime, timezone
 contextWindow: dict = {}
 
 
-def startClient(api_key):
-    client = OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=api_key)
-    return client
+def startClient(profiles, selected):
+    provider = selected[0]
+    profile = profiles[provider]
+    provider_urls = {
+        "nvidia": "https://integrate.api.nvidia.com/v1",
+        "cloud-ollama": "https://ollama.com/v1",
+    }
+    base_url = provider_urls.get(provider) or profile.get("baseUrl")
+    api_key = profile.get("apiKey")
+    if not base_url:
+        raise ValueError(f"No baseUrl configured for provider: {provider}")
+    if not api_key:
+        raise ValueError(f"No API key configured for provider: {provider}")
+    return OpenAI(base_url=base_url, api_key=api_key)
 
 
 def loadToolHandlers(path):

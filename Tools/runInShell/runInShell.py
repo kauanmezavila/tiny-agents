@@ -29,7 +29,7 @@ def runInShellCool(cmd, write=print):
     if process.stdout:
         for line in process.stdout:
             logs.append(line)
-            text = line.rstrip("\n")
+            text = line.rstrip("")
             write(f"{DIM}{text}{RESET}")
 
     code = process.wait()
