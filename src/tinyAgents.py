@@ -2,6 +2,7 @@ import uuid
 import os
 import json
 import importlib
+import tiktoken
 import asyncio
 from openai import OpenAI
 from datetime import datetime, timezone
@@ -176,13 +177,10 @@ def addToContextWindow(message, response, objectType, toolsRunned=[]):
 
 
 def contextWindowSize():
-    size = 0
-    for id, data in contextWindow.items():
-        size += len(data["objectContent"]["userMessage"]) + len(
-            data["objectContent"]["yourResponse"]
-        )
+    encoding = tiktoken.get_encoding("cl100k_base")
+    tokens = encoding.encode(str(contextWindow))
 
-    return size
+    return len(tokens)
 
 
 def clearContextWindow():

@@ -10,6 +10,12 @@ Tiny Agents is a framework for building custom agent harnesses. Version 0.2.2 ad
 
 The core works independently of the panel. Applications connect tools to the interface through callbacks, so the same tools can also run in a regular terminal.
 
+## Motors Supported
+
+| Provider |                                NVIDIA NIM                                 |
+| :------: | :-----------------------------------------------------------------------: |
+|  Models  | openai/gpt-oss-20b, nvidia/nemotron-3-super-120b-a12b, z-ai/glm-5-3-flash |
+
 ## Installation
 
 The core requires Python 3.9 or newer. The panel example requires Python 3.10 or newer because its handler annotations use union types.
@@ -41,7 +47,7 @@ Use a model that supports function tool calling. The client uses NVIDIA's OpenAI
 
 ## Panel example
 
-The following is the current `main.py` example. Save it as `main.py` in the project root if it is not present in your checkout; that filename is ignored by Git.
+The following is a working out harness called JuCode, with it you can use the NVIDIA NIM
 
 ```python
 import os
@@ -60,6 +66,7 @@ load_dotenv()
 
 apiKey = os.getenv("API_KEY")
 model = os.getenv("MODEL")
+modelsList = ["openai/gpt-oss-20b", "nvidia/nemotron-3-super-120b-a12b", "z-ai/glm-5-3-flash"]
 
 client = startClient(apiKey)
 
@@ -152,12 +159,14 @@ PANEL_CONFS = {
     "COMMANDS": COMMANDS,
     "COMMANDS_LIST": [command.name for command in COMMANDS],
     "MODEL_HANDLER": model_handler,
+    "MODEL_OPTIONS": modelsList
 }
 
 panel = initPanel(PANEL_CONFS)
 
 with patch_stdout():
     panel.run()
+
 ```
 
 Run the example from the project root so the tool configuration files and Python modules can be found:
@@ -198,22 +207,22 @@ Make compaction handlers read the same `model_state["name"]` if they should use 
 
 Pass a dictionary to `initPanel` from `src.Panel.Panel`:
 
-| Key | Purpose |
-| --- | --- |
-| `NAME_TEXT`, `SUBNAME_TEXT` | Title and subtitle; ANSI formatting is supported. |
-| `INPUT_BOX_UPPER_TEXT` | Extra text beside the scrolling hints. |
-| `THINKING_TEXT` | Activity label; defaults to `Thinking...`. |
-| `MODEL_NAME` | Current model name displayed in the panel; updated after selection. |
-| `MODEL_OPTIONS` | Optional list of model IDs that enables the `/model` selector. |
-| `MODEL_SELECT_HANDLER` | Optional callback receiving the selected model ID. Use it to update the state read by model and compaction handlers. |
-| `MODEL_HANDLER` | Callable receiving `(text, ctx)` and returning a response or `None`; synchronous and async handlers are supported. |
-| `COMMANDS` | List of `Command(name, description, handler)` instances. Command handlers receive `(args, ctx)` and may be synchronous or async. |
-| `COMMANDS_LIST` | Completion suggestions; defaults to registered command names. |
-| `CONTEXT_WINDOW_SIZE` | Function taking no arguments and returning the current usage; defaults to zero. |
-| `CONTEXT_WINDOW_MAX` | Positive integer used as the meter's maximum; defaults to `10000`. |
-| `THEME` | `default`, `dark`, `light`, or `ocean`; defaults to `default`. |
-| `MESSAGE_SPACING` | Number of blank lines between messages; defaults to `1`, and accepts `0`. |
-| `STYLE` | Style overrides for the selected theme. |
+| Key                         | Purpose                                                                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `NAME_TEXT`, `SUBNAME_TEXT` | Title and subtitle; ANSI formatting is supported.                                                                                |
+| `INPUT_BOX_UPPER_TEXT`      | Extra text beside the scrolling hints.                                                                                           |
+| `THINKING_TEXT`             | Activity label; defaults to `Thinking...`.                                                                                       |
+| `MODEL_NAME`                | Current model name displayed in the panel; updated after selection.                                                              |
+| `MODEL_OPTIONS`             | Optional list of model IDs that enables the `/model` selector.                                                                   |
+| `MODEL_SELECT_HANDLER`      | Optional callback receiving the selected model ID. Use it to update the state read by model and compaction handlers.             |
+| `MODEL_HANDLER`             | Callable receiving `(text, ctx)` and returning a response or `None`; synchronous and async handlers are supported.               |
+| `COMMANDS`                  | List of `Command(name, description, handler)` instances. Command handlers receive `(args, ctx)` and may be synchronous or async. |
+| `COMMANDS_LIST`             | Completion suggestions; defaults to registered command names.                                                                    |
+| `CONTEXT_WINDOW_SIZE`       | Function taking no arguments and returning the current usage; defaults to zero.                                                  |
+| `CONTEXT_WINDOW_MAX`        | Positive integer used as the meter's maximum; defaults to `10000`.                                                               |
+| `THEME`                     | `default`, `dark`, `light`, or `ocean`; defaults to `default`.                                                                   |
+| `MESSAGE_SPACING`           | Number of blank lines between messages; defaults to `1`, and accepts `0`.                                                        |
+| `STYLE`                     | Style overrides for the selected theme.                                                                                          |
 
 `PanelContext` exposes `write(text)`, `clear()`, and `exit()`. Writes from the agent worker are scheduled on the UI loop and chat updates are batched during bursts of output. The spinner refreshes only during activity, and unchanged ANSI lines are cached.
 
@@ -260,10 +269,10 @@ The model selector appears directly above the input box and uses the `completion
 
 The included tools are examples and conveniences for applications:
 
-| Tool | Behavior |
-| --- | --- |
-| `hourNow()` | Returns the current UTC date and time under `utc`. |
-| `runInShell(cmd)` | Collects shell output without displaying it. |
+| Tool                               | Behavior                                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `hourNow()`                        | Returns the current UTC date and time under `utc`.                                                   |
+| `runInShell(cmd)`                  | Collects shell output without displaying it.                                                         |
 | `runInShellCool(cmd, write=print)` | Collects shell output and sends the command, output lines, and exit status to the supplied callback. |
 
 Both shell tools return `logs` and `exitCode`, combining standard output and standard error. Output is read by line, so subprocess buffering can delay updates. Shell commands execute locally with `shell=True`.
@@ -313,20 +322,20 @@ This example reads environment variables directly. The helpers retain synchronou
 
 ## Context and API
 
-| API | Purpose |
-| --- | --- |
-| `startClient(api_key)` | Create the NVIDIA OpenAI-compatible client. |
-| `messageToLLM(client, model, prePrompt, message)` | Async request without tool calling; returns the SDK completion. |
-| `loadTools(path)` | Load the `tools` array from JSON. |
-| `loadToolHandlers(path)` | Import and validate configured Python handlers. |
-| `messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS)` | Async request with tool execution; returns completion and execution records. |
-| `addToContextWindow(message, response, objectType, toolsRunned=[])` | Save an exchange and optional tool records. |
-| `contextWindow` | Shared in-memory conversation dictionary. |
-| `contextWindowSize()` | Count saved user and response characters. |
-| `clearContextWindow()` | Clear the saved conversation. |
-| `OldCompactContextWindow(maxSize)` | Remove the oldest exchanges until the size is within a non-negative character limit. |
-| `NewCompactContextWindow(client, model)` | Async request for a summary that replaces the saved conversation; must be awaited. |
-| `prettyResolve(text)` | Format Markdown headings and emphasis for terminal output. |
+| API                                                                          | Purpose                                                                              |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `startClient(api_key)`                                                       | Create the NVIDIA OpenAI-compatible client.                                          |
+| `messageToLLM(client, model, prePrompt, message)`                            | Async request without tool calling; returns the SDK completion.                      |
+| `loadTools(path)`                                                            | Load the `tools` array from JSON.                                                    |
+| `loadToolHandlers(path)`                                                     | Import and validate configured Python handlers.                                      |
+| `messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS)` | Async request with tool execution; returns completion and execution records.         |
+| `addToContextWindow(message, response, objectType, toolsRunned=[])`          | Save an exchange and optional tool records.                                          |
+| `contextWindow`                                                              | Shared in-memory conversation dictionary.                                            |
+| `contextWindowSize()`                                                        | Count saved user and response tokens.                                                |
+| `clearContextWindow()`                                                       | Clear the saved conversation.                                                        |
+| `OldCompactContextWindow(maxSize)`                                           | Remove the oldest exchanges until the size is within a non-negative character limit. |
+| `NewCompactContextWindow(client, model)`                                     | Async request for a summary that replaces the saved conversation; must be awaited.   |
+| `prettyResolve(text)`                                                        | Format Markdown headings and emphasis for terminal output.                           |
 
 Requests do not automatically save their results. Pass `executedTools` to `addToContextWindow` to retain tool records alongside an exchange. Context is shared within the process and is lost when it exits. Model-based compaction makes an additional API request and may lose details.
 
