@@ -17,6 +17,7 @@ For step-by-step examples, see the [usage guide](docs/USAGE.md). The guide cover
 
 | Module                | Main responsibilities                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `tinyAgents/`          | Public imports: `tinyAgents`, `tinyAgents.core`, `tinyAgents.harness`, `tinyAgents.panel`, `tinyAgents.colors`, and `tinyAgents.formatting`. |
 | `src/tinyAgents.py`   | `startClient`, model request functions, tool loading and execution, context storage and compaction.          |
 | `src/AgentHarness.py` | `AgentHarness`: connects provider/model state, tools, requests, context, worker, and panel callbacks.        |
 | `src/Panel/Panel.py`  | `initPanel`, `Command`, `PanelContext`, `AsyncWorker`, command dispatch, and terminal UI.                    |
@@ -25,6 +26,17 @@ For step-by-step examples, see the [usage guide](docs/USAGE.md). The guide cover
 | `main.py`             | Application configuration and assembly: profiles, prompt, tool setup, commands, panel settings, and startup. |
 
 Keep application-specific behavior and configuration in `main.py` or app modules. Reusable request and wiring behavior belongs in the framework modules; tool implementations belong in `Tools/`.
+
+The package name used by `pip install` does not determine Python import names. The public imports are available in short or module-specific forms:
+
+```python
+from tinyAgents import AgentHarness, startClient, messageToLLM
+from tinyAgents.core import loadTools
+from tinyAgents.harness import AgentHarness
+from tinyAgents.panel import initPanel, Command, AsyncWorker
+from tinyAgents.colors import BLUE, WHITE
+from tinyAgents.formatting import prettyResolve
+```
 
 ## Providers and models
 
@@ -35,23 +47,29 @@ Keep application-specific behavior and configuration in `main.py` or app modules
 
 ## Installation
 
-The core requires Python 3.9 or newer. The panel example requires Python 3.10 or newer because its handler annotations use union types.
+The framework requires Python 3.10 or newer.
 
-From a repository checkout, install the core and the example's additional dependencies:
+The distribution name is `by-tiny-agents`; Python imports use `tinyAgents`.
+
+Install the core and panel dependencies from a repository checkout:
 
 ```bash
-uv sync
-uv pip install prompt-toolkit python-dotenv
+uv sync --extra panel
 ```
 
 Or use pip:
 
 ```bash
-python -m pip install .
-python -m pip install prompt-toolkit python-dotenv
+python -m pip install ".[panel]"
 ```
 
-The panel and example tools currently run from the checkout: the package configuration includes `src` and `Packages`, but does not include `src.Panel` or `Tools`. `prompt-toolkit` and `python-dotenv` are not declared core dependencies.
+To install directly from GitHub with pip, use:
+
+```bash
+python -m pip install "by-tiny-agents[panel] @ git+https://github.com/kauanmezavila/tiny-agents.git"
+```
+
+The installable package includes the core, harness, panel, tools and their JSON schemas, and `Packages` helpers. `main.py` remains the repository's configurable example harness.
 
 Create a `.env` file in the project root:
 
@@ -71,10 +89,9 @@ import os
 from dotenv import load_dotenv
 from prompt_toolkit.patch_stdout import patch_stdout
 
-from src.tinyAgents import *
-from src.AgentHarness import AgentHarness
-from src.Panel.Panel import initPanel, PanelContext, Command, AsyncWorker
-from Packages.colors import *
+from tinyAgents import *
+from tinyAgents.panel import initPanel, PanelContext, Command, AsyncWorker
+from tinyAgents.colors import *
 
 agent_worker = AsyncWorker()
 load_dotenv()
@@ -185,7 +202,7 @@ Commands include `/echo`, `/clear`, `/exit`, `/compact`, and `/model`. Run `/mod
 
 ## Panel configuration
 
-Pass a dictionary to `initPanel` from `src.Panel.Panel`:
+Pass a dictionary to `initPanel` from `tinyAgents.panel`:
 
 | Key                         | Purpose                                                                                                                          |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -280,13 +297,13 @@ result = runInShellCool("echo hello")
 
 ## Core without the panel
 
-Import the core from `src.tinyAgents` and the panel separately from `src.Panel.Panel`. The request helpers are async functions and must be awaited:
+Import the public API from `tinyAgents`. The request helpers are async functions and must be awaited:
 
 ```python
 import asyncio
 import os
 
-from src.tinyAgents import startClient, messageToLLM, addToContextWindow
+from tinyAgents import startClient, messageToLLM, addToContextWindow
 
 async def run():
     model = "nvidia/nemotron-3-super-120b-a12b"

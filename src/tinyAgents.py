@@ -2,12 +2,27 @@ import uuid
 import os
 import json
 import importlib
+from importlib.resources import files
+from pathlib import Path
 import tiktoken
 import asyncio
 from openai import OpenAI
 from datetime import datetime, timezone
 
 contextWindow: dict = {}
+
+
+def _open_config(path):
+    config_path = Path(path)
+    if config_path.is_file():
+        return config_path.open("r", encoding="utf-8")
+
+    if config_path.parts and config_path.parts[0] == "Tools":
+        resource_path = files("Tools").joinpath(*config_path.parts[1:])
+        if resource_path.is_file():
+            return resource_path.open("r", encoding="utf-8")
+
+    raise FileNotFoundError(f"Configuration file not found: {path}")
 
 
 def startClient(profiles, selected):
@@ -27,7 +42,7 @@ def startClient(profiles, selected):
 
 
 def loadToolHandlers(path):
-    with open(path, "r", encoding="utf-8") as file:
+    with _open_config(path) as file:
         config = json.load(file)
 
     handlers = {}
@@ -47,7 +62,7 @@ def loadToolHandlers(path):
 
 
 def loadTools(path):
-    with open(path, "r", encoding="utf-8") as file:
+    with _open_config(path) as file:
         return json.load(file)["tools"]
 
 

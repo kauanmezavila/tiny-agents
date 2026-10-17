@@ -1,18 +1,32 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tiny-agents"
+name = "by-tiny-agents"
 version = "0.2.3"
 description = "Small building blocks for Python agents and harnesses"
 readme = "README.md"
-requires-python = ">=3.9"
-license = { file = "LICENSE" }
-dependencies = ["openai"]
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["openai", "tiktoken"]
+
+[project.optional-dependencies]
+panel = ["prompt-toolkit", "python-dotenv"]
+
+[project.urls]
+Homepage = "https://github.com/kauanmezavila/tiny-agents"
+Repository = "https://github.com/kauanmezavila/tiny-agents"
+Issues = "https://github.com/kauanmezavila/tiny-agents/issues"
 
 [dependency-groups]
 dev = ["black"]
 
-[tool.setuptools]
-packages = ["src", "Packages"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tinyAgents", "tinyAgents.*", "src", "src.*", "Packages", "Packages.*", "Tools", "Tools.*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+Tools = ["*.json"]

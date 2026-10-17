@@ -1,1 +1,4 @@
 openai
+tiktoken
+prompt-toolkit
+python-dotenv

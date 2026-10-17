@@ -5,6 +5,11 @@
 .agents
 
 __pycache__/
-__init__.py
+*.py[cod]
+.pytest_cache/
+build/
+dist/
+*.egg-info/
 
+__init__.py
 main.py

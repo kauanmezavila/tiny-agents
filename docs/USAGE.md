@@ -2,27 +2,31 @@
 
 This guide shows how to use Tiny Agents without the panel, add tools, and connect an agent to the terminal panel through `AgentHarness`.
 
+Install the distribution as `by-tiny-agents`; import it in Python as `tinyAgents`.
+
 ## Where each responsibility belongs
 
 | Location | Responsibility |
 | --- | --- |
+| `tinyAgents/` | Public import interface: package-level exports plus `core`, `harness`, `panel`, `colors`, and `formatting` modules. |
 | `main.py` | Application configuration and assembly: provider profiles, selected model, tools, system instructions, panel commands, and startup. |
 | `src/AgentHarness.py` | Reusable wiring between providers, model selection, tool calls, conversation context, the worker, and panel callbacks. |
 | `src/tinyAgents.py` | Framework primitives: API clients and requests, JSON tool loading/execution, conversation context, and compaction. |
 | `src/Panel/` | Terminal UI, command dispatch, worker, themes, and `PanelContext`. |
-| `Tools/` | Application tool schemas, handler mappings, and tool implementations. |
+| `Tools/` | Packaged tool schemas, handler mappings, and tool implementations. |
 | `Packages/` | Small presentation helpers such as terminal colors and Markdown formatting. |
 
-Put behavior that is specific to an application in its own module or in `Tools/`. Keep reusable framework behavior in `src/`. `main.py` selects and connects those pieces; it should not need to implement the model request and tool execution flow itself.
+Put behavior that is specific to an application in its own module or in `Tools/`. Keep reusable framework behavior in `src/` and expose it through `tinyAgents/`. `main.py` selects and connects those pieces; it should not need to implement the model request and tool execution flow itself.
 
 ## Install and configure
 
 Install the project and the panel example's additional dependencies:
 
 ```bash
-uv sync
-uv pip install prompt-toolkit python-dotenv
+uv sync --extra panel
 ```
+
+With pip, install from a checkout using `python -m pip install ".[panel]"`. To install from GitHub, use `python -m pip install "by-tiny-agents[panel] @ git+https://github.com/kauanmezavila/tiny-agents.git"`. The package provides the core, harness, panel, tools, schemas, and helper modules. `main.py` remains the repository's runnable example.
 
 Create a `.env` file in the project root with the keys needed by the providers you enable:
 
@@ -58,7 +62,7 @@ The core request helpers can be used directly in a script. The SDK calls are syn
 import asyncio
 import os
 
-from src.tinyAgents import addToContextWindow, messageToLLM, startClient
+from tinyAgents import addToContextWindow, messageToLLM, startClient
 
 model = "nvidia/nemotron-3-super-120b-a12b"
 profiles = {"nvidia": {"apiKey": os.environ["API_KEY_NVIDIA"]}}
@@ -127,6 +131,8 @@ tools = loadTools("Tools/tools.json")
 tool_handlers = loadToolHandlers("Tools/toolsCall.json")
 ```
 
+The packaged JSON files can be loaded by these same paths after installation; the framework falls back to package resources when the files are not in the current directory.
+
 `messageToLLMTools` offers the schemas to the model, checks that requested handlers are allowed, passes decoded JSON arguments to them, and sends their results back to the model. It allows up to five tool-call rounds per request.
 
 ## Assemble the panel harness
@@ -134,8 +140,8 @@ tool_handlers = loadToolHandlers("Tools/toolsCall.json")
 Create the worker and harness in the application setup. The harness owns the reusable request flow; the app supplies its configuration:
 
 ```python
-from src.AgentHarness import AgentHarness
-from src.Panel.Panel import AsyncWorker, Command, initPanel
+from tinyAgents import AgentHarness
+from tinyAgents.panel import AsyncWorker, Command, initPanel
 
 worker = AsyncWorker()
 agent = AgentHarness(
@@ -179,7 +185,7 @@ The selector displays `provider / model`; each option ID is `provider::model`. W
 The framework exposes a shared in-memory `contextWindow` and these helpers:
 
 ```python
-from src.tinyAgents import (
+from tinyAgents import (
     addToContextWindow,
     clearContextWindow,
     contextWindow,
