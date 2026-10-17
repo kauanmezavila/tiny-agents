@@ -454,7 +454,9 @@ def initPanel(confs: dict) -> Application:
         async def select_model(args: list[str], ctx: PanelContext):
             if not args:
                 nonlocal model_menu_open, model_menu_index
-                current = str(confs.get("MODEL_OPTION") or confs.get("MODEL_NAME") or "")
+                current = str(
+                    confs.get("MODEL_OPTION") or confs.get("MODEL_NAME") or ""
+                )
                 model_menu_index = options.index(current) if current in options else 0
                 model_menu_open = True
                 app = app_ref[0]
@@ -626,7 +628,9 @@ def initPanel(confs: dict) -> Application:
                 confs["MODEL_PROVIDER"] = provider
                 confs["MODEL_NAME"] = model_name
                 confs["MODEL_OPTION"] = selected
-                selected_label = model_option_labels.get(selected, f"{provider} / {model_name}")
+                selected_label = model_option_labels.get(
+                    selected, f"{provider} / {model_name}"
+                )
             else:
                 confs["MODEL_NAME"] = selected
                 selected_label = selected

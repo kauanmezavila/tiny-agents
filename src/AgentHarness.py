@@ -102,19 +102,17 @@ class AgentHarness:
             except (TypeError, ValueError):
                 accepts_writer = False
             if accepts_writer:
-                tool_handlers[name] = lambda *args, _handler=handler, **kwargs: _handler(
-                    *args, write=ctx.write, **kwargs
+                tool_handlers[name] = (
+                    lambda *args, _handler=handler, **kwargs: _handler(
+                        *args, write=ctx.write, **kwargs
+                    )
                 )
 
         return await self.worker.run(
-            self._process_agent(
-                prompt, request_client, request_model, tool_handlers
-            )
+            self._process_agent(prompt, request_client, request_model, tool_handlers)
         )
 
     async def compact_context(self, args, ctx) -> None:
         request_client = self.client
         request_model = self.model
-        await self.worker.run(
-            NewCompactContextWindow(request_client, request_model)
-        )
+        await self.worker.run(NewCompactContextWindow(request_client, request_model))
