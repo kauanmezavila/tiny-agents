@@ -21,7 +21,15 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import ANSI, to_formatted_text
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.layout import DynamicContainer, Float, FloatContainer, HSplit, VSplit, Layout, Window
+from prompt_toolkit.layout import (
+    DynamicContainer,
+    Float,
+    FloatContainer,
+    HSplit,
+    VSplit,
+    Layout,
+    Window,
+)
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.lexers import Lexer
@@ -785,27 +793,34 @@ def initPanel(confs: dict) -> Application:
                 *(
                     [
                         DynamicContainer(
-                            lambda: Window(
-                                content=FormattedTextControl(
-                                    lambda: [
-                                        ("class:title", " Select model "),
-                                        ("", "\n↑/↓ navigation | Enter selects | Esc quit\n\n"),
-                                        *[
+                            lambda: (
+                                Window(
+                                    content=FormattedTextControl(
+                                        lambda: [
+                                            ("class:title", " Select model "),
                                             (
-                                                "class:radio-checked"
-                                                if index == model_menu_index
-                                                else "class:radio",
-                                                f"{'❯' if index == model_menu_index else ' '} {option}{'  (actual)' if option == confs.get('MODEL_NAME') else ''}\n",
-                                            )
-                                            for index, option in enumerate(options)
-                                        ],
-                                    ]
-                                ),
-                                height=len(options) + 3,
-                                style="class:completion-menu",
+                                                "",
+                                                "\n↑/↓ navigation | Enter selects | Esc quit\n\n",
+                                            ),
+                                            *[
+                                                (
+                                                    (
+                                                        "class:radio-checked"
+                                                        if index == model_menu_index
+                                                        else "class:radio"
+                                                    ),
+                                                    f"{'❯' if index == model_menu_index else ' '} {option}{'  (actual)' if option == confs.get('MODEL_NAME') else ''}\n",
+                                                )
+                                                for index, option in enumerate(options)
+                                            ],
+                                        ]
+                                    ),
+                                    height=len(options) + 3,
+                                    style="class:completion-menu",
+                                )
+                                if model_menu_open
+                                else Window(height=0)
                             )
-                            if model_menu_open
-                            else Window(height=0)
                         )
                     ]
                     if model_options
