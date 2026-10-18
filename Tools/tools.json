@@ -25,9 +25,7 @@
               "description": "The command to execute in the shell."
             }
           },
-          "required": [
-            "cmd"
-          ],
+          "required": ["cmd"],
           "additionalProperties": false
         }
       }
@@ -45,9 +43,25 @@
               "description": "The command to execute in the shell."
             }
           },
-          "required": [
-            "cmd"
-          ],
+          "required": ["cmd"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "webSearch",
+        "description": "Search the web and return matching pages with extracted content.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query"
+            }
+          },
+          "required": ["query"],
           "additionalProperties": false
         }
       }

@@ -5,6 +5,7 @@
   <h1>Tiny Agents</h1>
   <p>Small building blocks for Python agents and harnesses.</p>
   <p><b>v0.2.4: parallel tools, guarded commands, more work and safety.</b></p>
+  <p><em>[Code build v0.2.4-webSearch]</em><p>
 </div>
 
 Tiny Agents is a framework for building custom agent harnesses. Version 0.2.4 adds concurrent tool execution within each model turn, optional serialization for tools that share state, approval prompts for selected tools, and a more responsive panel. `AgentHarness` connects model/provider selection, clients, tools, conversation context, and panel callbacks. Application configuration and harness creation stay in `main.py`; reusable wiring lives in the framework. The framework also includes OpenAI-compatible provider clients, JSON-based tool calling, in-memory conversation context, and terminal formatting utilities.
@@ -21,7 +22,7 @@ For step-by-step examples, see the [usage guide](docs/USAGE.md). The guide cover
 | `src/tinyAgents.py`   | `startClient`, model request functions, tool loading and execution, context storage and compaction.                                          |
 | `src/AgentHarness.py` | `AgentHarness`: connects provider/model state, tools, requests, context, worker, and panel callbacks.                                        |
 | `src/Panel/Panel.py`  | `initPanel`, `Command`, `PanelContext`, `AsyncWorker`, command dispatch, and terminal UI.                                                    |
-| `Tools/`              | Tool schemas, handler mappings, and tool implementations such as `hourNow` and shell commands.                                               |
+| `Tools/`              | Tool schemas, handler mappings, and tool implementations such as `hourNow`, shell commands, and web search.                                  |
 | `Packages/`           | Presentation helpers such as `prettyResolve` and terminal colors.                                                                            |
 | `main.py`             | Application configuration and assembly: profiles, prompt, tool setup, commands, panel settings, and startup.                                 |
 
@@ -287,17 +288,19 @@ The model selector appears directly above the input box and uses the `completion
 {
   "hourNow": "Tools.hourNow.hourNow:hourNow",
   "runInShell": "Tools.runInShell.runInShell:runInShell",
-  "runInShellCool": "Tools.runInShell.runInShell:runInShellCool"
+  "runInShellCool": "Tools.runInShell.runInShell:runInShellCool",
+  "webSearch": "Tools.webSearch.webSearch:webSearch"
 }
 ```
 
 The included tools are examples and conveniences for applications:
 
-| Tool                               | Behavior                                                                                             |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `hourNow()`                        | Returns the current UTC date and time under `utc`.                                                   |
-| `runInShell(cmd)`                  | Collects shell output without displaying it.                                                         |
-| `runInShellCool(cmd, write=print)` | Collects shell output and sends the command, output lines, and exit status to the supplied callback. |
+| Tool                                                        | Behavior                                                                                             |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `hourNow()`                                                 | Returns the current UTC date and time under `utc`.                                                   |
+| `runInShell(cmd)`                                           | Collects shell output without displaying it.                                                         |
+| `runInShellCool(cmd, write=print)`                          | Collects shell output and sends the command, output lines, and exit status to the supplied callback. |
+| `webSearch(query, limit=1, max_per_page=3000, write=print)` | Searches the web and returns result titles, URLs, snippets, and extracted page content.              |
 
 Both shell tools return `logs` and `exitCode`, combining standard output and standard error. Output is read by line, so subprocess buffering can delay updates. Shell commands execute locally with `shell=True`.
 

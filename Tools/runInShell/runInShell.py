@@ -41,8 +41,8 @@ def runInShellCool(cmd, write=print):
 
     code = process.wait()
     if code == 0:
-        write(f"{BRIGHT_GREEN}{BOLD}╰─ ✓ Completed{RESET} {DIM}(exit code {code}){RESET}")
+        write(f"{DIM}{BRIGHT_GREEN}{BOLD}╰─ ✓ Completed{RESET} (exit code {code}){RESET}")
     else:
-        write(f"{BRIGHT_RED}{BOLD}╰─ ✗ Failed{RESET} {DIM}(exit code {code}){RESET}")
+        write(f"{DIM}{BRIGHT_RED}{BOLD}╰─ ✗ Failed{RESET} (exit code {code}){RESET}")
 
     return {"logs": logs, "exitCode": code}
