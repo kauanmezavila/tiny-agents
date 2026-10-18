@@ -470,6 +470,7 @@ def initPanel(confs: dict) -> Application:
         try:
             return await asyncio.wrap_future(decision)
         except asyncio.CancelledError:
+
             def clear_cancelled_request() -> None:
                 if approval_state["future"] is decision:
                     approval_state["future"] = None
@@ -699,9 +700,13 @@ def initPanel(confs: dict) -> Application:
         if not decision.done():
             decision.set_result(approved)
         if approved:
-            add_message(f"{BRIGHT_GREEN}✓ Approved{RESET} {DIM}· command will run{RESET}")
+            add_message(
+                f"{BRIGHT_GREEN}✓ Approved{RESET} {DIM}· command will run{RESET}"
+            )
         else:
-            add_message(f"{BRIGHT_RED}✗ Denied{RESET} {DIM}· command was blocked{RESET}")
+            add_message(
+                f"{BRIGHT_RED}✗ Denied{RESET} {DIM}· command was blocked{RESET}"
+            )
         event.app.invalidate()
 
     @kb.add("up", filter=approval_menu_is_open, eager=True)
@@ -898,9 +903,11 @@ def initPanel(confs: dict) -> Application:
         arguments = approval_state["arguments"]
         command = arguments.get("cmd") if isinstance(arguments, dict) else None
         if command is None:
-            command = " · ".join(
-                f"{key}: {value}" for key, value in arguments.items()
-            ) if isinstance(arguments, dict) else str(arguments)
+            command = (
+                " · ".join(f"{key}: {value}" for key, value in arguments.items())
+                if isinstance(arguments, dict)
+                else str(arguments)
+            )
         app = app_ref[0]
         columns = app.output.get_size().columns if app is not None else 80
         command_width = max(20, min(84, columns - 28))
@@ -925,7 +932,11 @@ def initPanel(confs: dict) -> Application:
         ]
         fragments.extend(
             (
-                "class:radio-checked" if index == approval_state["index"] else "class:radio",
+                (
+                    "class:radio-checked"
+                    if index == approval_state["index"]
+                    else "class:radio"
+                ),
                 f"  {'❯' if index == approval_state['index'] else ' '} {choice}\n",
             )
             for index, choice in enumerate(choices)

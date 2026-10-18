@@ -157,9 +157,7 @@ async def messageToLLMTools(
 
                 if toolName in approvalTools:
                     if onToolApproval is None:
-                        raise PermissionError(
-                            f"Approval required for tool: {toolName}"
-                        )
+                        raise PermissionError(f"Approval required for tool: {toolName}")
                     async with approvalLock:
                         approved = await onToolApproval(toolName, args)
                     if not approved:
