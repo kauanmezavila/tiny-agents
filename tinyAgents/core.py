@@ -1,5 +1,3 @@
-"""Core API re-exported from the framework implementation."""
-
 from src.tinyAgents import (
     NewCompactContextWindow,
     OldCompactContextWindow,

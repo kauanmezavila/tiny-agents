@@ -1,3 +1,12 @@
+## [0.2.4]
+
+- Added concurrent execution for tool calls returned in the same model turn. Synchronous handlers run in worker threads; async handlers are awaited.
+- Added optional serialization for configured tools and user approval callbacks for tools that need confirmation.
+- Added an approval menu to the panel with command previews and approve/deny controls; the example requires approval for shell commands.
+- Improved panel tool activity and shell output presentation, including dim output, clearer status colors, and responsive approval-menu layout.
+- Moved synchronous OpenAI SDK requests to worker threads so they do not block the async worker loop.
+- Preserved separation between core requests, the optional panel, tools, and the application-provided harness callbacks.
+
 ## [0.2.3]
 
 - Added `AgentHarness` to the framework to connect provider/model selection, clients, tool execution, conversation context, and panel callbacks.

@@ -1,5 +1,12 @@
 import subprocess
-from Packages.colors import DIM, RESET
+from Packages.colors import (
+    BOLD,
+    BRIGHT_BLUE,
+    BRIGHT_GREEN,
+    BRIGHT_RED,
+    DIM,
+    RESET,
+)
 
 
 def runInShell(cmd):
@@ -19,7 +26,7 @@ def runInShell(cmd):
 
 
 def runInShellCool(cmd, write=print):
-    write(f"{DIM}$ {cmd}{RESET}")
+    write(f"{BRIGHT_BLUE}{BOLD}╭─ $ {cmd}{RESET}")
     logs = []
 
     process = subprocess.Popen(
@@ -29,10 +36,13 @@ def runInShellCool(cmd, write=print):
     if process.stdout:
         for line in process.stdout:
             logs.append(line)
-            text = line.rstrip("")
-            write(f"{DIM}{text}{RESET}")
+            text = line.rstrip("\r\n")
+            write(f"{DIM}│ {text}{RESET}")
 
     code = process.wait()
-    write(f"{DIM}Exited with [{code}]{RESET}")
+    if code == 0:
+        write(f"{BRIGHT_GREEN}{BOLD}╰─ ✓ Completed{RESET} {DIM}(exit code {code}){RESET}")
+    else:
+        write(f"{BRIGHT_RED}{BOLD}╰─ ✗ Failed{RESET} {DIM}(exit code {code}){RESET}")
 
     return {"logs": logs, "exitCode": code}

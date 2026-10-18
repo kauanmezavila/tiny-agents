@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import inspect
+import json
 import re
 import shlex
 import sys
@@ -22,6 +24,7 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import ANSI, to_formatted_text
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import (
+    Dimension,
     DynamicContainer,
     Float,
     FloatContainer,
@@ -92,10 +95,12 @@ class PanelContext:
         write: Callable[[str], None],
         clear: Action,
         exit: Action,
+        request_approval: Callable[[str, dict], Awaitable[bool]] | None = None,
     ) -> None:
         self._write = write
         self._clear = clear
         self._exit = exit
+        self._request_approval = request_approval
 
     def write(self, text: str) -> None:
         self._write(str(text))
@@ -105,6 +110,11 @@ class PanelContext:
 
     def exit(self) -> None:
         self._exit()
+
+    async def request_approval(self, tool_name: str, arguments: dict) -> bool:
+        if self._request_approval is None:
+            return False
+        return await self._request_approval(tool_name, arguments)
 
 
 async def dispatch(
@@ -436,10 +446,45 @@ def initPanel(confs: dict) -> Application:
     def exit_panel() -> None:
         run_on_ui(exit_panel_now)
 
+    approval_state: dict = {"future": None, "tool": "", "arguments": {}, "index": 0}
+
+    async def request_tool_approval(tool_name: str, arguments: dict) -> bool:
+        decision = concurrent.futures.Future()
+
+        def show_request() -> None:
+            approval_state.update(
+                future=decision,
+                tool=tool_name,
+                arguments=arguments,
+                index=0,
+            )
+            add_message(
+                f"{BRIGHT_YELLOW}⚠{RESET} {BOLD}Approval needed{RESET} "
+                f"{DIM}·{RESET} {BRIGHT_CYAN}{tool_name}{RESET}"
+            )
+            app = app_ref[0]
+            if app is not None:
+                app.invalidate()
+
+        run_on_ui(show_request)
+        try:
+            return await asyncio.wrap_future(decision)
+        except asyncio.CancelledError:
+            def clear_cancelled_request() -> None:
+                if approval_state["future"] is decision:
+                    approval_state["future"] = None
+                    app = app_ref[0]
+                    if app is not None:
+                        app.invalidate()
+
+            run_on_ui(clear_cancelled_request)
+            raise
+
     ctx = PanelContext(
         write=write_message,
         clear=clear_messages,
         exit=exit_panel,
+        request_approval=request_tool_approval,
     )
 
     registry = {command.name: command for command in confs.get("COMMANDS", [])}
@@ -641,7 +686,49 @@ def initPanel(confs: dict) -> Application:
             model_menu_open = False
             app.invalidate()
 
-    menu_is_open = Condition(lambda: model_menu_open)
+    approval_menu_is_open = Condition(lambda: approval_state["future"] is not None)
+    menu_is_open = Condition(
+        lambda: model_menu_open and approval_state["future"] is None
+    )
+
+    def finish_approval(approved: bool, event) -> None:
+        decision = approval_state["future"]
+        if decision is None:
+            return
+        approval_state["future"] = None
+        if not decision.done():
+            decision.set_result(approved)
+        if approved:
+            add_message(f"{BRIGHT_GREEN}✓ Approved{RESET} {DIM}· command will run{RESET}")
+        else:
+            add_message(f"{BRIGHT_RED}✗ Denied{RESET} {DIM}· command was blocked{RESET}")
+        event.app.invalidate()
+
+    @kb.add("up", filter=approval_menu_is_open, eager=True)
+    def approval_menu_up(event) -> None:
+        approval_state["index"] = (approval_state["index"] - 1) % 2
+        event.app.invalidate()
+
+    @kb.add("down", filter=approval_menu_is_open, eager=True)
+    def approval_menu_down(event) -> None:
+        approval_state["index"] = (approval_state["index"] + 1) % 2
+        event.app.invalidate()
+
+    @kb.add("enter", filter=approval_menu_is_open, eager=True)
+    def approval_menu_enter(event) -> None:
+        finish_approval(approval_state["index"] == 0, event)
+
+    @kb.add("escape", filter=approval_menu_is_open, eager=True)
+    def approval_menu_escape(event) -> None:
+        finish_approval(False, event)
+
+    @kb.add("y", filter=approval_menu_is_open, eager=True)
+    def approve_tool(event) -> None:
+        finish_approval(True, event)
+
+    @kb.add("n", filter=approval_menu_is_open, eager=True)
+    def deny_tool(event) -> None:
+        finish_approval(False, event)
 
     @kb.add("up", filter=menu_is_open, eager=True)
     def model_menu_up(event) -> None:
@@ -804,6 +891,53 @@ def initPanel(confs: dict) -> Application:
         event.app.create_background_task(process_model(text, event.app))
         event.app.invalidate()
 
+    def approval_menu_window():
+        if approval_state["future"] is None:
+            return Window(height=0)
+
+        arguments = approval_state["arguments"]
+        command = arguments.get("cmd") if isinstance(arguments, dict) else None
+        if command is None:
+            command = " · ".join(
+                f"{key}: {value}" for key, value in arguments.items()
+            ) if isinstance(arguments, dict) else str(arguments)
+        app = app_ref[0]
+        columns = app.output.get_size().columns if app is not None else 80
+        command_width = max(20, min(84, columns - 28))
+        command_lines = []
+        for raw_line in command.split("\n"):
+            remaining = raw_line
+            while len(remaining) > command_width:
+                split_at = remaining.rfind(" ", 0, command_width + 1)
+                if split_at <= 0:
+                    split_at = command_width
+                command_lines.append(remaining[:split_at])
+                remaining = remaining[split_at:]
+            command_lines.append(remaining)
+
+        choices = ["Approve command", "Deny command"]
+        fragments = [
+            ("class:title", "  ╭─ REVIEW TOOL REQUEST\n"),
+            ("class:hint", f"  │  Tool  ·  {approval_state['tool']}\n"),
+            ("class:hint", "  ├─ Command\n"),
+            *[("class:tool-output", f"  │  {line}\n") for line in command_lines],
+            ("class:hint", "  │\n  └─ ↑/↓ move  ·  Enter select  ·  Esc deny\n\n"),
+        ]
+        fragments.extend(
+            (
+                "class:radio-checked" if index == approval_state["index"] else "class:radio",
+                f"  {'❯' if index == approval_state['index'] else ' '} {choice}\n",
+            )
+            for index, choice in enumerate(choices)
+        )
+        return Window(
+            content=FormattedTextControl(fragments),
+            height=10 + len(command_lines),
+            width=Dimension(min=40, preferred=96, max=112),
+            wrap_lines=True,
+            style="class:completion-menu",
+        )
+
     root = FloatContainer(
         content=HSplit(
             [
@@ -858,6 +992,19 @@ def initPanel(confs: dict) -> Application:
                     max_height=6,
                     scroll_offset=1,
                 ),
+            ),
+            Float(
+                content=VSplit(
+                    [
+                        Window(width=Dimension(weight=1)),
+                        DynamicContainer(approval_menu_window),
+                        Window(width=Dimension(weight=1)),
+                    ]
+                ),
+                top=2,
+                left=0,
+                right=0,
+                z_index=10,
             ),
         ],
     )

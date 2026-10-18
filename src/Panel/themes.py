@@ -1,5 +1,7 @@
 BASE_STYLE = {
     "model": "",
+    "radio": "fg:#7f8c9f",
+    "radio-checked": "fg:#45c7e8 bold",
     "error": "fg:#ff6b6b",
     "context-low": "fg:#4caf80",
     "context-warning": "fg:#e9b949",
@@ -18,6 +20,8 @@ def _palette(background, foreground, muted, accent, user_background):
         "input-field": f"bg:{user_background} {foreground}",
         "completion-menu": f"bg:{user_background} {foreground}",
         "completion-menu.completion.current": f"bg:{accent} {background}",
+        "radio": f"fg:{muted}",
+        "radio-checked": f"fg:{accent} bold",
         "scrollbar": f"bg:{background}",
         "scrollbar.button": f"bg:{accent}",
     }

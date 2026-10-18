@@ -6,15 +6,17 @@ Install the distribution as `by-tiny-agents`; import it in Python as `tinyAgents
 
 ## Where each responsibility belongs
 
-| Location | Responsibility |
-| --- | --- |
-| `tinyAgents/` | Public import interface: package-level exports plus `core`, `harness`, `panel`, `colors`, and `formatting` modules. |
-| `main.py` | Application configuration and assembly: provider profiles, selected model, tools, system instructions, panel commands, and startup. |
-| `src/AgentHarness.py` | Reusable wiring between providers, model selection, tool calls, conversation context, the worker, and panel callbacks. |
-| `src/tinyAgents.py` | Framework primitives: API clients and requests, JSON tool loading/execution, conversation context, and compaction. |
-| `src/Panel/` | Terminal UI, command dispatch, worker, themes, and `PanelContext`. |
-| `Tools/` | Packaged tool schemas, handler mappings, and tool implementations. |
-| `Packages/` | Small presentation helpers such as terminal colors and Markdown formatting. |
+| Location              | Responsibility                                                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `tinyAgents/`         | Public import interface: package-level exports plus `core`, `harness`, `panel`, `colors`, and `formatting` modules.                 |
+| `main.py`             | Application configuration and assembly: provider profiles, selected model, tools, system instructions, panel commands, and startup. |
+| `src/AgentHarness.py` | Reusable wiring between providers, model selection, tool calls, conversation context, the worker, and panel callbacks.              |
+| `src/tinyAgents.py`   | Framework primitives: API clients and requests, JSON tool loading/execution, conversation context, and compaction.                  |
+| `src/Panel/`          | Terminal UI, command dispatch, worker, themes, and `PanelContext`.                                                                  |
+| `Tools/`              | Packaged tool schemas, handler mappings, and tool implementations.                                                                  |
+| `Packages/`           | Small presentation helpers such as terminal colors and Markdown formatting.                                                         |
+
+These layers remain usable independently. Import `tinyAgents.core` for model requests, tool execution, and context without importing the panel. Use `tinyAgents.panel` only when building the terminal UI; its dependencies are in the optional `panel` extra. `AgentHarness` connects these pieces through a supplied worker and context callbacks, while tool handlers remain ordinary Python functions and do not depend on the UI.
 
 Put behavior that is specific to an application in its own module or in `Tools/`. Keep reusable framework behavior in `src/` and expose it through `tinyAgents/`. `main.py` selects and connects those pieces; it should not need to implement the model request and tool execution flow itself.
 
@@ -108,7 +110,7 @@ Add its schema to `Tools/tools.json`:
     "description": "Greet a person by name.",
     "parameters": {
       "type": "object",
-      "properties": {"name": {"type": "string"}},
+      "properties": { "name": { "type": "string" } },
       "required": ["name"],
       "additionalProperties": false
     }
@@ -133,7 +135,18 @@ tool_handlers = loadToolHandlers("Tools/toolsCall.json")
 
 The packaged JSON files can be loaded by these same paths after installation; the framework falls back to package resources when the files are not in the current directory.
 
-`messageToLLMTools` offers the schemas to the model, checks that requested handlers are allowed, passes decoded JSON arguments to them, and sends their results back to the model. It allows up to five tool-call rounds per request.
+`messageToLLMTools` offers the schemas to the model, checks that requested handlers are allowed, passes decoded JSON arguments to them, and sends their results back to the model. Tool calls returned in the same model response run concurrently; the next round starts after all of them finish, so the model can use their results to choose the next step. Synchronous handlers run in worker threads, and async handlers are awaited. Pass tool names in `serializedTools` to protect them with a shared lock, including across simultaneous requests:
+
+```python
+completion, executed_tools = await messageToLLMTools(
+    client, model, pre_prompt, message, tools, tool_handlers,
+    serializedTools={"write_file", "update_database"},
+)
+```
+
+When using `AgentHarness`, pass the same set as `serialized_tools` to its constructor. Calls to all listed tools are serialized with each other; unlisted tools still run concurrently. It allows up to five tool-call rounds per request.
+
+Pass tool names in `approval_tools` to require a user decision before execution. The panel opens a menu showing the tool name and arguments; use the arrow keys and Enter to choose, or press `y` to approve and `n`/Esc to deny. A denied call is returned to the model as a failed tool result. For example, `main.py` requires approval for both shell tools.
 
 ## Assemble the panel harness
 

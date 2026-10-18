@@ -2,6 +2,7 @@ import uuid
 import os
 import json
 import importlib
+import inspect
 from importlib.resources import files
 from pathlib import Path
 import tiktoken
@@ -10,6 +11,7 @@ from openai import OpenAI
 from datetime import datetime, timezone
 
 contextWindow: dict = {}
+_serializedToolLock = None
 
 
 def _open_config(path):
@@ -67,7 +69,8 @@ def loadTools(path):
 
 
 async def messageToLLM(client, model, prePrompt, message):
-    completion = client.chat.completions.create(
+    completion = await asyncio.to_thread(
+        client.chat.completions.create,
         model=model,
         messages=[
             {
@@ -87,7 +90,18 @@ async def messageToLLM(client, model, prePrompt, message):
     return completion
 
 
-async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS):
+async def messageToLLMTools(
+    client,
+    model,
+    prePrompt,
+    message,
+    TOOLS,
+    TOOL_HANDLERS,
+    serializedTools=(),
+    onToolStart=None,
+    approvalTools=(),
+    onToolApproval=None,
+):
     messages = [
         {
             "role": "system",
@@ -104,8 +118,10 @@ async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDL
 
     maxToolRounds = 5
     executedTools = []
+    approvalLock = asyncio.Lock()
 
-    completion = client.chat.completions.create(
+    completion = await asyncio.to_thread(
+        client.chat.completions.create,
         model=model,
         messages=messages,
         tools=TOOLS,
@@ -123,7 +139,7 @@ async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDL
 
         messages.append(assistantMessage.model_dump(exclude_none=True))
 
-        for toolCall in assistantMessage.tool_calls:
+        async def executeTool(toolCall):
             toolName = toolCall.function.name
             toolId = toolCall.id
             args = None
@@ -137,7 +153,43 @@ async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDL
                 if not isinstance(args, dict):
                     raise ValueError("Tool arguments must be a JSON object")
 
-                result = TOOL_HANDLERS[toolName](**args)
+                handler = TOOL_HANDLERS[toolName]
+
+                if toolName in approvalTools:
+                    if onToolApproval is None:
+                        raise PermissionError(
+                            f"Approval required for tool: {toolName}"
+                        )
+                    async with approvalLock:
+                        approved = await onToolApproval(toolName, args)
+                    if not approved:
+                        raise PermissionError(
+                            f"User denied execution of tool: {toolName}"
+                        )
+
+                async def callHandler():
+                    if onToolStart is not None:
+                        try:
+                            onToolStart(toolName)
+                        except Exception:
+                            pass
+                    if inspect.iscoroutinefunction(handler):
+                        value = await handler(**args)
+                    else:
+                        value = await asyncio.to_thread(handler, **args)
+                        if inspect.isawaitable(value):
+                            value = await value
+                    return value
+
+                if toolName in serializedTools:
+                    global _serializedToolLock
+                    if _serializedToolLock is None:
+                        _serializedToolLock = asyncio.Lock()
+                    lock = _serializedToolLock
+                    async with lock:
+                        result = await callHandler()
+                else:
+                    result = await callHandler()
 
                 toolOutput = {
                     "ok": True,
@@ -150,16 +202,13 @@ async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDL
                     "error": str(error),
                 }
 
-            executedTools.append(
+            return (
                 {
                     "id": toolId,
                     "name": toolName,
                     "arguments": args,
                     **toolOutput,
-                }
-            )
-
-            messages.append(
+                },
                 {
                     "role": "tool",
                     "tool_call_id": toolId,
@@ -168,10 +217,18 @@ async def messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDL
                         ensure_ascii=False,
                         default=str,
                     ),
-                }
+                },
             )
 
-        completion = client.chat.completions.create(
+        toolResults = await asyncio.gather(
+            *(executeTool(toolCall) for toolCall in assistantMessage.tool_calls)
+        )
+        for execution, toolMessage in toolResults:
+            executedTools.append(execution)
+            messages.append(toolMessage)
+
+        completion = await asyncio.to_thread(
+            client.chat.completions.create,
             model=model,
             messages=messages,
             tools=TOOLS,
@@ -220,7 +277,8 @@ def OldCompactContextWindow(maxSize):
 
 
 async def NewCompactContextWindow(client, model):
-    completion = client.chat.completions.create(
+    completion = await asyncio.to_thread(
+        client.chat.completions.create,
         model=model,
         messages=[
             {
