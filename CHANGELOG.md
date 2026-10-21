@@ -1,3 +1,11 @@
+## [0.2.5]
+
+- Removed package files from `.gitignore` and included the public `tinyAgents` package initializer in distributions.
+- Added the repository's runnable `main.py` panel example and fixed its package-level tool loader imports.
+- Switched examples to the available `openai/gpt-oss-20b` model.
+- Expanded terminal Markdown rendering to support lists, fenced code, links, and tables without treating single-star bullets as emphasis.
+- Updated the README with panel installation and available theme guidance.
+
 ## [0.2.4]
 
 - Added concurrent execution for tool calls returned in the same model turn. Synchronous handlers run in worker threads; async handlers are awaited.

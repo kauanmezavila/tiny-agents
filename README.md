@@ -4,11 +4,10 @@
   </table>
   <h1>Tiny Agents</h1>
   <p>Small building blocks for Python agents and harnesses.</p>
-  <p><b>v0.2.4: parallel tools, guarded commands, more work and safety.</b></p>
-  <p><em>[Code build v0.2.4-webSearch]</em><p>
+  <p><b>v0.2.5: packaged imports, readable Markdown, and a working panel example.</b></p>
 </div>
 
-Tiny Agents is a framework for building custom agent harnesses. Version 0.2.4 adds concurrent tool execution within each model turn, optional serialization for tools that share state, approval prompts for selected tools, and a more responsive panel. `AgentHarness` connects model/provider selection, clients, tools, conversation context, and panel callbacks. Application configuration and harness creation stay in `main.py`; reusable wiring lives in the framework. The framework also includes OpenAI-compatible provider clients, JSON-based tool calling, in-memory conversation context, and terminal formatting utilities.
+Tiny Agents is a framework for building custom agent harnesses. Version 0.2.5 fixes the published package exports, improves terminal Markdown rendering, and provides a runnable panel example. `AgentHarness` connects model/provider selection, clients, tools, conversation context, and panel callbacks. Application configuration and harness creation stay in `main.py`; reusable wiring lives in the framework. The framework also includes OpenAI-compatible provider clients, JSON-based tool calling, in-memory conversation context, and terminal formatting utilities.
 
 The core works independently of the panel. The core does not import panel code; `AgentHarness` accepts a worker and UI callbacks; the panel is an optional dependency. Tool handlers do not need to import the panel and can accept a `write` callback when they need to stream output. The same core and tools can run in a regular terminal.
 
@@ -43,7 +42,7 @@ from tinyAgents.formatting import prettyResolve
 
 | Provider     | Models                                                                          |
 | ------------ | ------------------------------------------------------------------------------- |
-| NVIDIA NIM   | `openai/gpt-oss-20b`, `nvidia/nemotron-3-super-120b-a12b`, `z-ai/glm-5-3-flash` |
+| NVIDIA NIM   | `openai/gpt-oss-20b`                                                          |
 | Cloud Ollama | `gpt-oss:20b`                                                                   |
 
 ## Installation
@@ -52,28 +51,16 @@ The framework requires Python 3.10 or newer.
 
 The distribution name is `by-tiny-agents`; Python imports use `tinyAgents`.
 
-After the package is published to PyPI, install the core with:
+Install the core with:
 
 ```bash
 python -m pip install by-tiny-agents
 ```
 
-To install the optional panel dependencies too:
+Install the optional panel dependencies too:
 
 ```bash
 python -m pip install "by-tiny-agents[panel]"
-```
-
-Install the core and panel dependencies from a repository checkout:
-
-```bash
-uv sync --extra panel
-```
-
-Or use pip:
-
-```bash
-python -m pip install ".[panel]"
 ```
 
 To install directly from GitHub with pip, use:
@@ -115,7 +102,7 @@ apiKeyOllama = os.getenv("API_KEY_OLLAMA")
 
 profiles = {
     "nvidia": {
-        "models": ["openai/gpt-oss-20b", "nvidia/nemotron-3-super-120b-a12b", "z-ai/glm-5-3-flash"],
+        "models": ["openai/gpt-oss-20b"],
         "apiKey": apiKeyNvidia,
     },
     "cloud-ollama": {
@@ -124,7 +111,7 @@ profiles = {
     }
 }
 
-selected = ["nvidia", "nvidia/nemotron-3-super-120b-a12b"]
+selected = ["nvidia", "openai/gpt-oss-20b"]
 
 toolsJsonPath = os.path.join("Tools", "tools.json")
 toolsCallJsonPath = os.path.join("Tools", "toolsCall.json")
@@ -174,7 +161,7 @@ PANEL_CONFS = {
     "MODEL_OPTION": agent.model_option,
     "CONTEXT_WINDOW_SIZE": contextWindowSize,
     "CONTEXT_WINDOW_MAX": 10000,
-    "THEME": "default",
+    "THEME": "dark",
     "MESSAGE_SPACING": 1,
     "STYLE": {
         "title": BOLD + BRIGHT_CYAN,
@@ -245,7 +232,7 @@ Pass a dictionary to `initPanel` from `tinyAgents.panel`:
 | `COMMANDS_LIST`             | Completion suggestions; defaults to registered command names.                                                                    |
 | `CONTEXT_WINDOW_SIZE`       | Function taking no arguments and returning the current usage; defaults to zero.                                                  |
 | `CONTEXT_WINDOW_MAX`        | Positive integer used as the meter's maximum; defaults to `10000`.                                                               |
-| `THEME`                     | `default`, `dark`, `light`, or `ocean`; defaults to `default`.                                                                   |
+| `THEME`                     | `default`, `dark`, `light`, or `ocean`; the bundled example uses `dark`.                                                          |
 | `MESSAGE_SPACING`           | Number of blank lines between messages; defaults to `1`, and accepts `0`.                                                        |
 | `STYLE`                     | Style overrides for the selected theme.                                                                                          |
 
@@ -259,7 +246,7 @@ The size callback and maximum must use the same unit. `contextWindowSize` counts
 
 ### Themes and message styles
 
-Explicit `STYLE` values override the selected theme. To use a complete preset, omit the corresponding overrides from the example:
+The panel includes four themes: `dark` for dark terminal backgrounds, `light` for light backgrounds, `ocean` for a blue-green palette, and `default` to retain the terminal's own colors. The bundled example selects `dark` because its brighter text and muted accents are easier to read across common terminal palettes. Explicit `STYLE` values override the selected theme. To use a complete preset, omit the corresponding overrides from the example:
 
 ```python
 PANEL_STYLE = {
@@ -335,7 +322,7 @@ import os
 from tinyAgents import startClient, messageToLLM, addToContextWindow
 
 async def run():
-    model = "nvidia/nemotron-3-super-120b-a12b"
+    model = "openai/gpt-oss-20b"
     profiles = {"nvidia": {"apiKey": os.environ["API_KEY_NVIDIA"]}}
     client = startClient(profiles, ["nvidia", model])
     message = "Hello"
@@ -366,7 +353,7 @@ This example reads environment variables directly. The helpers retain synchronou
 | `clearContextWindow()`                                                                                                                                    | Clear the saved conversation.                                                             |
 | `OldCompactContextWindow(maxSize)`                                                                                                                        | Remove the oldest exchanges until the size is within a non-negative character limit.      |
 | `NewCompactContextWindow(client, model)`                                                                                                                  | Async request for a summary that replaces the saved conversation; must be awaited.        |
-| `prettyResolve(text)`                                                                                                                                     | Format Markdown headings and emphasis for terminal output.                                |
+| `prettyResolve(text)`                                                                                                                                     | Format Markdown headings, emphasis, lists, fenced code, links, and tables for terminal output. |
 | `AgentHarness(...)`                                                                                                                                       | Connect provider/model selection, tool handlers, context, worker, and panel callbacks.    |
 
 Requests do not automatically save their results. Pass `executedTools` to `addToContextWindow` to retain tool records alongside an exchange. Context is shared within the process and is lost when it exits. Model-based compaction makes an additional API request and may lose details.
@@ -385,7 +372,7 @@ await agent_worker.run(NewCompactContextWindow(client, model))
 
 ## Project status
 
-Version 0.2.4 adds parallel tool execution, optional tool serialization and approval, and panel responsiveness and presentation updates. The framework remains under active development. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+Version 0.2.5 fixes packaging and Markdown rendering and updates the runnable example. The framework remains under active development. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Contributing
 

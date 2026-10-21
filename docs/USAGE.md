@@ -42,7 +42,7 @@ The provider profile maps a provider name to its key and available models. NVIDI
 ```python
 profiles = {
     "nvidia": {
-        "models": ["nvidia/nemotron-3-super-120b-a12b"],
+        "models": ["openai/gpt-oss-20b"],
         "apiKey": os.getenv("API_KEY_NVIDIA"),
     },
     "my-provider": {
@@ -51,7 +51,7 @@ profiles = {
         "baseUrl": "https://api.example.com/v1",
     },
 }
-selected = ["nvidia", "nvidia/nemotron-3-super-120b-a12b"]
+selected = ["nvidia", "openai/gpt-oss-20b"]
 ```
 
 Each model ID must be accepted by the selected provider. When selecting a model from another provider, `AgentHarness` creates a client with that provider's key and URL.
@@ -66,7 +66,7 @@ import os
 
 from tinyAgents import addToContextWindow, messageToLLM, startClient
 
-model = "nvidia/nemotron-3-super-120b-a12b"
+model = "openai/gpt-oss-20b"
 profiles = {"nvidia": {"apiKey": os.environ["API_KEY_NVIDIA"]}}
 client = startClient(profiles, ["nvidia", model])
 
