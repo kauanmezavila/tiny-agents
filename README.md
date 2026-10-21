@@ -4,7 +4,7 @@
   </table>
   <h1>Tiny Agents</h1>
   <p>Small building blocks for Python agents and harnesses.</p>
-  <p><b>v0.2.5: packaged imports, readable Markdown, and a working panel example.</b></p>
+  <p><b>v0.2.5: dumb fixes.</b></p>
 </div>
 
 Tiny Agents is a framework for building custom agent harnesses. Version 0.2.5 fixes the published package exports, improves terminal Markdown rendering, and provides a runnable panel example. `AgentHarness` connects model/provider selection, clients, tools, conversation context, and panel callbacks. Application configuration and harness creation stay in `main.py`; reusable wiring lives in the framework. The framework also includes OpenAI-compatible provider clients, JSON-based tool calling, in-memory conversation context, and terminal formatting utilities.
@@ -40,10 +40,10 @@ from tinyAgents.formatting import prettyResolve
 
 ## Providers and models
 
-| Provider     | Models                                                                          |
-| ------------ | ------------------------------------------------------------------------------- |
-| NVIDIA NIM   | `openai/gpt-oss-20b`                                                          |
-| Cloud Ollama | `gpt-oss:20b`                                                                   |
+| Provider     | Models               |
+| ------------ | -------------------- |
+| NVIDIA NIM   | `openai/gpt-oss-20b` |
+| Cloud Ollama | `gpt-oss:20b`        |
 
 ## Installation
 
@@ -232,7 +232,7 @@ Pass a dictionary to `initPanel` from `tinyAgents.panel`:
 | `COMMANDS_LIST`             | Completion suggestions; defaults to registered command names.                                                                    |
 | `CONTEXT_WINDOW_SIZE`       | Function taking no arguments and returning the current usage; defaults to zero.                                                  |
 | `CONTEXT_WINDOW_MAX`        | Positive integer used as the meter's maximum; defaults to `10000`.                                                               |
-| `THEME`                     | `default`, `dark`, `light`, or `ocean`; the bundled example uses `dark`.                                                          |
+| `THEME`                     | `default`, `dark`, `light`, or `ocean`; the bundled example uses `dark`.                                                         |
 | `MESSAGE_SPACING`           | Number of blank lines between messages; defaults to `1`, and accepts `0`.                                                        |
 | `STYLE`                     | Style overrides for the selected theme.                                                                                          |
 
@@ -340,21 +340,21 @@ This example reads environment variables directly. The helpers retain synchronou
 
 ## Context and API
 
-| API                                                                                                                                                       | Purpose                                                                                   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `startClient(profiles, selected)`                                                                                                                         | Create an OpenAI-compatible client using the selected provider's key and URL.             |
-| `messageToLLM(client, model, prePrompt, message)`                                                                                                         | Async request without tool calling; returns the SDK completion.                           |
-| `loadTools(path)`                                                                                                                                         | Load the `tools` array from JSON.                                                         |
-| `loadToolHandlers(path)`                                                                                                                                  | Import and validate configured Python handlers.                                           |
-| `messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS, serializedTools=(), onToolStart=None, approvalTools=(), onToolApproval=None)` | Async request with parallel execution, optional serialized tools, and approval callbacks. |
-| `addToContextWindow(message, response, objectType, toolsRunned=[])`                                                                                       | Save an exchange and optional tool records.                                               |
-| `contextWindow`                                                                                                                                           | Shared in-memory conversation dictionary.                                                 |
-| `contextWindowSize()`                                                                                                                                     | Count saved user and response tokens.                                                     |
-| `clearContextWindow()`                                                                                                                                    | Clear the saved conversation.                                                             |
-| `OldCompactContextWindow(maxSize)`                                                                                                                        | Remove the oldest exchanges until the size is within a non-negative character limit.      |
-| `NewCompactContextWindow(client, model)`                                                                                                                  | Async request for a summary that replaces the saved conversation; must be awaited.        |
+| API                                                                                                                                                       | Purpose                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `startClient(profiles, selected)`                                                                                                                         | Create an OpenAI-compatible client using the selected provider's key and URL.                  |
+| `messageToLLM(client, model, prePrompt, message)`                                                                                                         | Async request without tool calling; returns the SDK completion.                                |
+| `loadTools(path)`                                                                                                                                         | Load the `tools` array from JSON.                                                              |
+| `loadToolHandlers(path)`                                                                                                                                  | Import and validate configured Python handlers.                                                |
+| `messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS, serializedTools=(), onToolStart=None, approvalTools=(), onToolApproval=None)` | Async request with parallel execution, optional serialized tools, and approval callbacks.      |
+| `addToContextWindow(message, response, objectType, toolsRunned=[])`                                                                                       | Save an exchange and optional tool records.                                                    |
+| `contextWindow`                                                                                                                                           | Shared in-memory conversation dictionary.                                                      |
+| `contextWindowSize()`                                                                                                                                     | Count saved user and response tokens.                                                          |
+| `clearContextWindow()`                                                                                                                                    | Clear the saved conversation.                                                                  |
+| `OldCompactContextWindow(maxSize)`                                                                                                                        | Remove the oldest exchanges until the size is within a non-negative character limit.           |
+| `NewCompactContextWindow(client, model)`                                                                                                                  | Async request for a summary that replaces the saved conversation; must be awaited.             |
 | `prettyResolve(text)`                                                                                                                                     | Format Markdown headings, emphasis, lists, fenced code, links, and tables for terminal output. |
-| `AgentHarness(...)`                                                                                                                                       | Connect provider/model selection, tool handlers, context, worker, and panel callbacks.    |
+| `AgentHarness(...)`                                                                                                                                       | Connect provider/model selection, tool handlers, context, worker, and panel callbacks.         |
 
 Requests do not automatically save their results. Pass `executedTools` to `addToContextWindow` to retain tool records alongside an exchange. Context is shared within the process and is lost when it exits. Model-based compaction makes an additional API request and may lose details.
 
