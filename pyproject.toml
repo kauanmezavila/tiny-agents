@@ -21,7 +21,11 @@ Repository = "https://github.com/kauanmezavila/tiny-agents"
 Issues = "https://github.com/kauanmezavila/tiny-agents/issues"
 
 [dependency-groups]
-dev = ["black"]
+dev = [
+    "black",
+    "build>=1.6.1",
+    "twine>=7.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

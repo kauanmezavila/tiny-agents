@@ -1,228 +1,230 @@
-# Tiny Agents usage guide
+# Tiny Agents usage
 
-This guide shows how to use Tiny Agents without the panel, add tools, and connect an agent to the terminal panel through `AgentHarness`.
+The repository includes a `main.py` runnable example, just make sure to create a .env with a API KEY from NVIDIA NIM and (or) Ollama:
 
-Install the distribution as `by-tiny-agents`; import it in Python as `tinyAgents`.
-
-## Where each responsibility belongs
-
-| Location              | Responsibility                                                                                                                      |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `tinyAgents/`         | Public import interface: package-level exports plus `core`, `harness`, `panel`, `colors`, and `formatting` modules.                 |
-| `main.py`             | Application configuration and assembly: provider profiles, selected model, tools, system instructions, panel commands, and startup. |
-| `src/AgentHarness.py` | Reusable wiring between providers, model selection, tool calls, conversation context, the worker, and panel callbacks.              |
-| `src/tinyAgents.py`   | Framework primitives: API clients and requests, JSON tool loading/execution, conversation context, and compaction.                  |
-| `src/Panel/`          | Terminal UI, command dispatch, worker, themes, and `PanelContext`.                                                                  |
-| `Tools/`              | Packaged tool schemas, handler mappings, and tool implementations.                                                                  |
-| `Packages/`           | Small presentation helpers such as terminal colors and Markdown formatting.                                                         |
-
-These layers remain usable independently. Import `tinyAgents.core` for model requests, tool execution, and context without importing the panel. Use `tinyAgents.panel` only when building the terminal UI; its dependencies are in the optional `panel` extra. `AgentHarness` connects these pieces through a supplied worker and context callbacks, while tool handlers remain ordinary Python functions and do not depend on the UI.
-
-Put behavior that is specific to an application in its own module or in `Tools/`. Keep reusable framework behavior in `src/` and expose it through `tinyAgents/`. `main.py` selects and connects those pieces; it should not need to implement the model request and tool execution flow itself.
-
-## Install and configure
-
-Install the project and the panel example's additional dependencies:
-
-```bash
-uv sync --extra panel
+```env
+API_KEY_NVIDIA=your-key
+API_KEY_OLLAMA=your-key
 ```
 
-With pip, install from a checkout using `python -m pip install ".[panel]"`. To install from GitHub, use `python -m pip install "by-tiny-agents[panel] @ git+https://github.com/kauanmezavila/tiny-agents.git"`. The package provides the core, harness, panel, tools, schemas, and helper modules. `main.py` remains the repository's runnable example.
-
-Create a `.env` file in the project root with the keys needed by the providers you enable:
-
-```dotenv
-API_KEY_NVIDIA=your-nvidia-api-key
-API_KEY_OLLAMA=your-ollama-api-key
-```
-
-The provider profile maps a provider name to its key and available models. NVIDIA and Cloud Ollama use URLs defined in `startClient`. For another OpenAI-compatible provider, supply `baseUrl`:
+Lets learn how to use with the example:
 
 ```python
-profiles = {
-    "nvidia": {
-        "models": ["openai/gpt-oss-20b"],
-        "apiKey": os.getenv("API_KEY_NVIDIA"),
+import os                                                                   # For getting .env values
+from dotenv import load_dotenv                                              # For getting .env values
+from prompt_toolkit.patch_stdout import patch_stdout                        # To run the panel
+                                                                            #
+from tinyAgents import *                                                    # Import the main framework
+from tinyAgents.panel import initPanel, PanelContext, Command, AsyncWorker  # The panel utils
+from tinyAgents.colors import *                                             # The color util
+
+agent_worker = AsyncWorker() # Enable the async in the panel, i MUST be for avoid some weird things
+
+load_dotenv() # Load the .env
+
+apiKeyNvidia = os.getenv("API_KEY_NVIDIA") # Provider API key
+apiKeyOllama = os.getenv("API_KEY_OLLAMA") # Provider API key
+
+profiles = { # Here you configures the models + providers
+    "nvidia": { # Provider name
+        "models": ["openai/gpt-oss-20b"], # Avaliable models
+        "apiKey": apiKeyNvidia, # The API key
     },
-    "my-provider": {
-        "models": ["my-model"],
-        "apiKey": os.getenv("MY_PROVIDER_API_KEY"),
-        "baseUrl": "https://api.example.com/v1",
-    },
+    "cloud-ollama": {
+        "models": ["gpt-oss:20b"],
+        "apiKey": apiKeyOllama,
+    }
 }
-selected = ["nvidia", "openai/gpt-oss-20b"]
+
+selected = ["nvidia", "openai/gpt-oss-20b"] # The default selected model
+
+toolsJsonPath = os.path.join("Tools", "tools.json") # Path resolving for OS-wides
+toolsCallJsonPath = os.path.join("Tools", "toolsCall.json") # Same thing here
+
+TOOLS = loadTools(toolsJsonPath) # Load the tools
+TOOLS_HANDLERS = loadToolHandlers(toolsCallJsonPath) # Here the handlers
+
+prePrompt = "You are a helpful agent that provides detailed answers. Use tools only when the user asks." # The instructions for the model
+agent = AgentHarness( # Here you create a agent for the panel
+    profiles=profiles,
+    selected=selected,
+    tools=TOOLS,
+    tool_handlers=TOOLS_HANDLERS,
+    pre_prompt=prePrompt,
+    worker=agent_worker, # The async
+    serialized_tools={"runInShell", "runInShellCool"}, # Tools allowed to run ONLY serialized
+    approval_tools={"runInShell", "runInShellCool"}, # Tools that demmands approval
+)
+
+
+def echo(args: list[str], ctx: PanelContext) -> str: # Comand for the panel
+    return " ".join(args)
+
+
+def clear_command(args: list[str], ctx: PanelContext) -> None: # Same here
+    ctx.clear()
+
+
+def exit_command(args: list[str], ctx: PanelContext) -> None: # And here
+    ctx.exit()
+
+
+COMMANDS = [ # The commands slash invocal, the help text, and the function to run
+    Command("/echo", "Repeat the arguments", echo),
+    Command("/clear", "Clear the panel", clear_command),
+    Command("/exit", "Exit the panel", exit_command),
+    Command("/compact", "Compact the context window", agent.compact_context),
+]
+
+PANEL_CONFS = { # The configs dict, here you configure the entire panel
+    "NAME_TEXT": f"{BOLD + BRIGHT_CYAN}JuCode{RESET}",
+    "SUBNAME_TEXT": f"{DIM + ITALIC}Powered by Tiny Agents{RESET}",
+    "INPUT_BOX_UPPER_TEXT": f"{DIM}Type a message | / for commands | Tab to complete{RESET}",
+    "THINKING_TEXT": "Thinking...",
+    "MODEL_NAME": agent.model,
+    "MODEL_PROVIDER": agent.provider,
+    "MODEL_OPTION": agent.model_option,
+    "CONTEXT_WINDOW_SIZE": contextWindowSize,
+    "CONTEXT_WINDOW_MAX": 10000,
+    "THEME": "dark",
+    "MESSAGE_SPACING": 1,
+    "STYLE": {
+        "title": BOLD + BRIGHT_CYAN,
+        "user": BG_BLUE + WHITE,
+        "model": WHITE,
+        "error": RED,
+        "separator": DIM + BLACK,
+        "hint": DIM,
+        "input-field": BG_BLUE + WHITE,
+        "completion-menu": BG_BRIGHT_BLACK + WHITE,
+        "completion-menu.completion": WHITE,
+        "completion-menu.completion.current": BG_BLUE + BOLD + WHITE,
+        "radio": DIM + WHITE,
+        "radio-checked": BOLD + BRIGHT_CYAN,
+        "scrollbar": BG_BLACK,
+        "scrollbar.button": BG_BLACK + WHITE,
+    },
+    "COMMANDS": COMMANDS,
+    "COMMANDS_LIST": [command.name for command in COMMANDS],
+    "MODEL_HANDLER": agent.model_handler,
+    "MODEL_OPTIONS": agent.model_options(),
+    "MODEL_OPTION_LABELS": agent.model_option_labels(),
+    "MODEL_SELECT_HANDLER": agent.select_model,
+}
+
+panel = initPanel(PANEL_CONFS) # init the panel with the confs
+
+with patch_stdout(): # Runs it in loop
+    panel.run()
+
 ```
 
-Each model ID must be accepted by the selected provider. When selecting a model from another provider, `AgentHarness` creates a client with that provider's key and URL.
+## Panel configuration
 
-## Make a request without the panel
+Everything that you can make with the configuration dict
 
-The core request helpers can be used directly in a script. The SDK calls are synchronous internally, even though these helpers are `async`:
+| Key                         | Purpose                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `NAME_TEXT`, `SUBNAME_TEXT` | Title and subtitle for the panel, ANSI is suported                                                           |
+| `INPUT_BOX_UPPER_TEXT`      | The text beside the scrolling hints.                                                                         |
+| `THINKING_TEXT`             | The activity text for when the model is working; default is `Thinking...`.                                   |
+| `MODEL_NAME`                | Current model name displayed in the panel                                                                    |
+| `MODEL_PROVIDER`            | Current provider displayed with the model when set.                                                          |
+| `MODEL_OPTION`              | Current selector ID, usually `provider::model`                                                               |
+| `MODEL_OPTIONS`             | Optional list of model that enables the `/model` selector.                                                   |
+| `MODEL_OPTION_LABELS`       | Optional mapping from selector IDs to readable labels                                                        |
+| `MODEL_SELECT_HANDLER`      | Optional callback receiving the selected option ID.                                                          |
+| `MODEL_HANDLER`             | Callable receiving `(text, ctx)` and returning a response or `None`                                          |
+| `COMMANDS`                  | List of `Command(name, description, handler)`. Command handlers receive `(args, ctx)`, can be sync or async. |
+| `COMMANDS_LIST`             | Commands completions suggestions; defaults to registered command names.                                      |
+| `CONTEXT_WINDOW_SIZE`       | The current window size                                                                                      |
+| `CONTEXT_WINDOW_MAX`        | The maximun value, integer; defaults to `10000`.                                                             |
+| `THEME`                     | `default`, `dark`, `light`, or `ocean`; the bundled example uses `dark`.                                     |
+| `MESSAGE_SPACING`           | Number of blank lines between messages; defaults to `1`, and accepts `0`.                                    |
+| `STYLE`                     | Style overrides for the selected theme.                                                                      |
+
+## Tool calling
+
+`Tools/tools.json` defines the function schemas offered to the model. `Tools/toolsCall.json` maps their names to Python handlers:
+
+```json
+{
+  "hourNow": "Tools.hourNow.hourNow:hourNow",
+  "runInShell": "Tools.runInShell.runInShell:runInShell",
+  "runInShellCool": "Tools.runInShell.runInShell:runInShellCool",
+  "webSearch": "Tools.webSearch.webSearch:webSearch"
+}
+```
+
+The included tools are examples and conveniences for applications.
+
+### Tools without the panel
+
+Tools do not import the panel. The output callback is supplied by the application and is not a model parameter or part of the JSON schema:
+
+```python
+from Tools.runInShell.runInShell import runInShellCool
+
+result = runInShellCool("echo hello")
+```
+
+`AgentHarness` connects tools that accept a `write` parameter to the panel's `ctx.write` callback when handling a request.
+
+## Core without the panel
+
+Import the public API from `tinyAgents`. The request helpers are async functions and must be awaited:
 
 ```python
 import asyncio
 import os
 
-from tinyAgents import addToContextWindow, messageToLLM, startClient
+from tinyAgents import startClient, messageToLLM, addToContextWindow
 
-model = "openai/gpt-oss-20b"
-profiles = {"nvidia": {"apiKey": os.environ["API_KEY_NVIDIA"]}}
-client = startClient(profiles, ["nvidia", model])
-
-
-async def main():
-    prompt = "Hello"
+async def run():
+    model = "openai/gpt-oss-20b"
+    profiles = {"nvidia": {"apiKey": os.environ["API_KEY_NVIDIA"]}}
+    client = startClient(profiles, ["nvidia", model])
+    message = "Hello"
     completion = await messageToLLM(
-        client,
-        model,
-        "You are a helpful assistant.",
-        prompt,
+        client, model, "You are a helpful assistant.", message
     )
     response = completion.choices[0].message.content or ""
-    addToContextWindow(prompt, response, "user input")
+    addToContextWindow(message, response, "user input")
     print(response)
 
-
-asyncio.run(main())
+asyncio.run(run())
 ```
 
-`messageToLLM` returns the provider SDK completion. This helper includes the shared context in the request, but saving the new exchange is the caller's responsibility. `addToContextWindow` stores it in process memory; it is lost when the program exits.
+This example reads environment variables directly. The helpers retain synchronous SDK calls internally, so applications with an interactive event loop should run them in a worker, as the panel example does.
 
-## Add and load a tool
+## Context and API
 
-A tool has three parts: a Python implementation, a JSON schema offered to the model, and a mapping from the schema name to the Python function.
+| API                                                                                                                                                       | Purpose                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `startClient(profiles, selected)`                                                                                                                         | Create an OpenAI-compatible client using the selected provider's key and URL.                  |
+| `messageToLLM(client, model, prePrompt, message)`                                                                                                         | Async request without tool calling; returns the SDK completion.                                |
+| `loadTools(path)`                                                                                                                                         | Load the `tools` array from JSON.                                                              |
+| `loadToolHandlers(path)`                                                                                                                                  | Import and validate configured Python handlers.                                                |
+| `messageToLLMTools(client, model, prePrompt, message, TOOLS, TOOL_HANDLERS, serializedTools=(), onToolStart=None, approvalTools=(), onToolApproval=None)` | Async request with parallel execution, optional serialized tools, and approval callbacks.      |
+| `addToContextWindow(message, response, objectType, toolsRunned=[])`                                                                                       | Save an exchange and optional tool records.                                                    |
+| `contextWindow`                                                                                                                                           | Shared in-memory conversation dictionary.                                                      |
+| `contextWindowSize()`                                                                                                                                     | Count saved user and response tokens.                                                          |
+| `clearContextWindow()`                                                                                                                                    | Clear the saved conversation.                                                                  |
+| `OldCompactContextWindow(maxSize)`                                                                                                                        | Remove the oldest exchanges until the size is within a non-negative character limit.           |
+| `NewCompactContextWindow(client, model)`                                                                                                                  | Async request for a summary that replaces the saved conversation; must be awaited.             |
+| `prettyResolve(text)`                                                                                                                                     | Format Markdown headings, emphasis, lists, fenced code, links, and tables for terminal output. |
+| `AgentHarness(...)`                                                                                                                                       | Connect provider/model selection, tool handlers, context, worker, and panel callbacks.         |
 
-For example, implement a tool in `Tools/example.py`:
+Requests do not automatically save their results. Pass `executedTools` to `addToContextWindow` to retain tool records alongside an exchange. Context is shared within the process and is lost when it exits. Model-based compaction makes an additional API request and may lose details.
+
+Compaction follows the same async calling pattern as `messageToLLM`:
 
 ```python
-def greet(name: str) -> dict:
-    return {"message": f"Hello, {name}!"}
+await NewCompactContextWindow(client, model)
 ```
 
-Add its schema to `Tools/tools.json`:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "greet",
-    "description": "Greet a person by name.",
-    "parameters": {
-      "type": "object",
-      "properties": { "name": { "type": "string" } },
-      "required": ["name"],
-      "additionalProperties": false
-    }
-  }
-}
-```
-
-Add the handler mapping to `Tools/toolsCall.json`:
-
-```json
-{
-  "greet": "Tools.example:greet"
-}
-```
-
-The project example has other mappings in that file, so add this property without removing them. Load both files in the application setup:
+From the panel's UI loop, use the existing worker to keep the synchronous SDK request off the UI thread:
 
 ```python
-tools = loadTools("Tools/tools.json")
-tool_handlers = loadToolHandlers("Tools/toolsCall.json")
+await agent_worker.run(NewCompactContextWindow(client, model))
 ```
-
-The packaged JSON files can be loaded by these same paths after installation; the framework falls back to package resources when the files are not in the current directory.
-
-`messageToLLMTools` offers the schemas to the model, checks that requested handlers are allowed, passes decoded JSON arguments to them, and sends their results back to the model. Tool calls returned in the same model response run concurrently; the next round starts after all of them finish, so the model can use their results to choose the next step. Synchronous handlers run in worker threads, and async handlers are awaited. Pass tool names in `serializedTools` to protect them with a shared lock, including across simultaneous requests:
-
-```python
-completion, executed_tools = await messageToLLMTools(
-    client, model, pre_prompt, message, tools, tool_handlers,
-    serializedTools={"write_file", "update_database"},
-)
-```
-
-When using `AgentHarness`, pass the same set as `serialized_tools` to its constructor. Calls to all listed tools are serialized with each other; unlisted tools still run concurrently. It allows up to five tool-call rounds per request.
-
-Pass tool names in `approval_tools` to require a user decision before execution. The panel opens a menu showing the tool name and arguments; use the arrow keys and Enter to choose, or press `y` to approve and `n`/Esc to deny. A denied call is returned to the model as a failed tool result. For example, `main.py` requires approval for both shell tools.
-
-## Assemble the panel harness
-
-Create the worker and harness in the application setup. The harness owns the reusable request flow; the app supplies its configuration:
-
-```python
-from tinyAgents import AgentHarness
-from tinyAgents.panel import AsyncWorker, Command, initPanel
-
-worker = AsyncWorker()
-agent = AgentHarness(
-    profiles=profiles,
-    selected=selected,
-    tools=tools,
-    tool_handlers=tool_handlers,
-    pre_prompt="You are a helpful assistant. Use tools when asked.",
-    worker=worker,
-)
-```
-
-Pass the harness callbacks and selector data to `initPanel`:
-
-```python
-PANEL_CONFS = {
-    "MODEL_NAME": agent.model,
-    "MODEL_PROVIDER": agent.provider,
-    "MODEL_OPTION": agent.model_option,
-    "MODEL_HANDLER": agent.model_handler,
-    "MODEL_OPTIONS": agent.model_options(),
-    "MODEL_OPTION_LABELS": agent.model_option_labels(),
-    "MODEL_SELECT_HANDLER": agent.select_model,
-    "CONTEXT_WINDOW_SIZE": contextWindowSize,
-    "COMMANDS": [
-        Command("/compact", "Compact the context", agent.compact_context),
-        # Add app-specific commands here.
-    ],
-}
-
-panel = initPanel(PANEL_CONFS)
-panel.run()
-```
-
-The selector displays `provider / model`; each option ID is `provider::model`. When the provider changes, the harness replaces its client. It also captures the client and model together for each request. For tools whose handler accepts a `write` argument, the harness supplies the panel's `ctx.write` callback so output appears in the chat.
-
-`AsyncWorker` keeps synchronous SDK work off the panel's UI loop. Use `agent.compact_context` for `/compact` so compaction uses the current provider and model too.
-
-## Context helpers
-
-The framework exposes a shared in-memory `contextWindow` and these helpers:
-
-```python
-from tinyAgents import (
-    addToContextWindow,
-    clearContextWindow,
-    contextWindow,
-    contextWindowSize,
-    NewCompactContextWindow,
-)
-
-addToContextWindow("question", "answer", "user input")
-print(contextWindowSize())
-
-async def compact(client, model):
-    await NewCompactContextWindow(client, model)
-
-clearContextWindow()
-```
-
-`NewCompactContextWindow` asks the selected model for a summary and replaces the current context with it. Call it from an async function and, in panel code, run it through `AsyncWorker` (or use `agent.compact_context`).
-
-## Run the repository example
-
-From the repository root:
-
-```bash
-uv run --with prompt-toolkit --with python-dotenv main.py
-```
-
-The example's provider list, system prompt, tools, commands, and visual panel settings are configured in `main.py`. The generic request, selection, tool, and context wiring is provided by the framework.
